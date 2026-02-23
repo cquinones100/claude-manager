@@ -75,7 +75,7 @@ export function App({ onResume }: AppProps) {
   if (loading) {
     return (
       <Box padding={1}>
-        <Text color="cyan">
+        <Text color="blue">
           <Spinner type="dots" />
         </Text>
         <Text> Loading sessions…</Text>
@@ -102,7 +102,7 @@ export function App({ onResume }: AppProps) {
   if (threadLoading) {
     return (
       <Box padding={1}>
-        <Text color="cyan">
+        <Text color="blue">
           <Spinner type="dots" />
         </Text>
         <Text> Loading conversation…</Text>

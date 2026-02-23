@@ -20,7 +20,7 @@ function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={isSelected ? "cyan" : "gray"}
+      borderColor={isSelected ? "blue" : "gray"}
       paddingX={1}
       width={width}
       height={height}
@@ -35,7 +35,7 @@ function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
       </Box>
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
         {session.preview.map((line, i) => (
-          <Text key={i} color={line.label === "User" ? "green" : "cyan"} dimColor>{line.label}: {line.text}</Text>
+          <Text key={i} color={line.label === "User" ? "yellow" : "blue"} dimColor>{line.label}: {line.text}</Text>
         ))}
       </Box>
     </Box>

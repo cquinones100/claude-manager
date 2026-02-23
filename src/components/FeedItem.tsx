@@ -3,9 +3,9 @@ import { Box, Text } from "ink"
 import { FeedEntry } from "../types.js"
 
 const TYPE_COLORS: Record<string, string> = {
-  prompt: "green",
+  prompt: "yellow",
   response: "white",
-  tool_use: "yellow",
+  tool_use: "magenta",
   tool_result: "gray",
 }
 
@@ -40,13 +40,13 @@ export function FeedItem({ entry, isSelected, isExpanded }: FeedItemProps) {
     <Box flexDirection="column">
       <Box>
         {isSelected ? (
-          <Text color="cyan" bold>{"▸ "}</Text>
+          <Text color="blue" bold>{"▸ "}</Text>
         ) : (
           <Text>{"  "}</Text>
         )}
         <Text dimColor>{formatTimestamp(entry.timestamp)}</Text>
         <Text> </Text>
-        <Text color="blue">{entry.project.padEnd(20)}</Text>
+        <Text color="white">{entry.project.padEnd(20)}</Text>
         <Text> </Text>
         <Text color={color} bold>{label.padEnd(7)}</Text>
         <Text> </Text>

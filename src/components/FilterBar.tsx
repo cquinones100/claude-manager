@@ -25,7 +25,7 @@ export function FilterBar({
         </Text>
         <Box gap={1}>
           <Text dimColor>project:</Text>
-          <Text color={activeProject ? "blue" : "gray"}>
+          <Text color={activeProject ? "white" : "gray"}>
             {activeProject || "all"}
           </Text>
         </Box>
@@ -34,7 +34,7 @@ export function FilterBar({
           {allTypes.map((t) => (
             <Text
               key={t}
-              color={activeTypes.has(t) ? "green" : "gray"}
+              color={activeTypes.has(t) ? "blue" : "gray"}
               dimColor={!activeTypes.has(t)}
             >
               {t}

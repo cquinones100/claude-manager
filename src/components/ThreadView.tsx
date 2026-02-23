@@ -113,7 +113,7 @@ type ThreadItemRowProps = {
 
 function ThreadItemRow({ item, isSelected, isExpanded }: ThreadItemRowProps) {
   const cursor = isSelected ? (
-    <Text color="cyan" bold>{"▸ "}</Text>
+    <Text color="blue" bold>{"▸ "}</Text>
   ) : (
     <Text>{"  "}</Text>
   )
@@ -137,8 +137,8 @@ function PromptRow({ item, cursor, isExpanded }: RowProps & { item: ThreadItem &
     <Box flexDirection="column">
       <Box>
         {cursor}
-        <Text color="green" bold>{"> "}</Text>
-        <Text color="green" bold wrap="truncate">
+        <Text color="yellow" bold>{"> "}</Text>
+        <Text color="yellow" bold wrap="truncate">
           {isExpanded ? item.text : truncate(item.text, 120)}
         </Text>
         <Text> </Text>
@@ -146,7 +146,7 @@ function PromptRow({ item, cursor, isExpanded }: RowProps & { item: ThreadItem &
       </Box>
       {isExpanded && item.text.length > 120 && (
         <Box marginLeft={4} flexDirection="column">
-          <Text color="green">{item.text}</Text>
+          <Text color="yellow">{item.text}</Text>
         </Box>
       )}
     </Box>
@@ -164,13 +164,13 @@ function TextRow({ item, cursor, isExpanded }: RowProps & { item: ThreadItem & {
       <Box>
         {cursor}
         <Text>{"  "}</Text>
-        <Text color="cyan" wrap="truncate">
+        <Text color="blue" wrap="truncate">
           {isExpanded ? "" : truncate(preview.replace(/\n/g, " "), 120)}
         </Text>
       </Box>
       {isExpanded && (
         <Box marginLeft={4} flexDirection="column">
-          <Text color="cyan">{item.text}</Text>
+          <Text color="blue">{item.text}</Text>
           {item.model && <Text dimColor>model: {item.model}</Text>}
         </Box>
       )}
@@ -185,7 +185,7 @@ function ToolRow({ item, cursor, isExpanded }: RowProps & { item: ThreadItem & {
         {cursor}
         <Text>{"  "}</Text>
         <Text>{isExpanded ? "▾ " : "▸ "}</Text>
-        <Text color="yellow" bold>{item.name}</Text>
+        <Text color="magenta" bold>{item.name}</Text>
         <Text dimColor>{"  "}{truncate(item.description.replace(`${item.name}: `, ""), 100)}</Text>
       </Box>
       {isExpanded && (
