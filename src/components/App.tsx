@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { Box, Text, useInput, useApp } from "ink"
 import Spinner from "ink-spinner"
-import { loadAllSessions, deriveSessions, loadSessionThread } from "../sessions.js"
+import { watch } from "node:fs"
+import { loadAllSessions, deriveSessions, loadSessionThread, CLAUDE_DIR } from "../sessions.js"
 import { FeedEntry, ResumeTarget, View, ThreadItem } from "../types.js"
 import { SessionGrid } from "./SessionGrid.js"
 import { ThreadView } from "./ThreadView.js"
@@ -19,6 +20,9 @@ export function App({ onResume }: AppProps) {
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([])
   const [threadLoading, setThreadLoading] = useState(false)
 
+  const viewRef = useRef(view)
+  viewRef.current = view
+
   useEffect(() => {
     loadAllSessions().then(({ entries }) => {
       setEntries(entries)
@@ -35,6 +39,29 @@ export function App({ onResume }: AppProps) {
       })
     }
   }, [view])
+
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+    const watcher = watch(CLAUDE_DIR, { recursive: true }, (_event, filename) => {
+      if (!filename?.endsWith(".jsonl")) return
+
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        loadAllSessions().then(({ entries }) => setEntries(entries))
+
+        const current = viewRef.current
+        if (current.kind === "feed") {
+          loadSessionThread(current.sessionId).then((items) => setThreadItems(items))
+        }
+      }, 300)
+    })
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      watcher.close()
+    }
+  }, [])
 
   const sessions = useMemo(() => deriveSessions(entries), [entries])
 

@@ -3,7 +3,7 @@ import { join, basename } from "node:path"
 import { homedir } from "node:os"
 import { FeedEntry, EntryType, SessionSummary, ThreadItem } from "./types.js"
 
-const CLAUDE_DIR = join(homedir(), ".claude", "projects")
+export const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
 
 export function truncate(text: string, max = 200): string {
