@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime } from "../sessions.js"
+import { Scrollbar } from "./Scrollbar.js"
 
 const COLS = 3
 const ROWS = 3
@@ -107,23 +108,31 @@ export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) 
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold>Today's Sessions ({sessions.length})</Text>
-      <Box flexDirection="column" marginTop={1}>
-        {rows.map((row, rowIdx) => (
-          <Box key={scrollRow + rowIdx}>
-            {row.map((session, colIdx) => {
-              const globalIdx = visibleStart + rowIdx * COLS + colIdx
-              return (
-                <SessionCard
-                  key={session.sessionId}
-                  session={session}
-                  isSelected={globalIdx === cursor}
-                  width={cellWidth}
-                  height={cellHeight}
-                />
-              )
-            })}
-          </Box>
-        ))}
+      <Box marginTop={1}>
+        <Box flexDirection="column" flexGrow={1}>
+          {rows.map((row, rowIdx) => (
+            <Box key={scrollRow + rowIdx}>
+              {row.map((session, colIdx) => {
+                const globalIdx = visibleStart + rowIdx * COLS + colIdx
+                return (
+                  <SessionCard
+                    key={session.sessionId}
+                    session={session}
+                    isSelected={globalIdx === cursor}
+                    width={cellWidth}
+                    height={cellHeight}
+                  />
+                )
+              })}
+            </Box>
+          ))}
+        </Box>
+        <Scrollbar
+          totalItems={totalRows}
+          visibleCount={ROWS}
+          scrollOffset={scrollRow}
+          height={ROWS * cellHeight}
+        />
       </Box>
       <Box gap={2}>
         <Text dimColor>←↑↓→ navigate</Text>
