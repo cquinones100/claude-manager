@@ -25,13 +25,19 @@ function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
       width={width}
       height={height}
     >
-      <Text bold={isSelected} wrap="truncate">{session.project}</Text>
-      <Text dimColor wrap="truncate">
-        {formatRelativeTime(session.lastActivityAt)} · {session.entryCount} entries
-      </Text>
-      {session.preview.map((line, i) => (
-        <Text key={i} color={line.label === "User" ? "green" : "cyan"} dimColor>{line.label}: {line.text}</Text>
-      ))}
+      <Box flexShrink={0}>
+        <Text bold={isSelected} wrap="truncate">{session.project}</Text>
+      </Box>
+      <Box flexShrink={0}>
+        <Text dimColor wrap="truncate">
+          {formatRelativeTime(session.lastActivityAt)} · {session.entryCount} entries
+        </Text>
+      </Box>
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        {session.preview.map((line, i) => (
+          <Text key={i} color={line.label === "User" ? "green" : "cyan"} dimColor>{line.label}: {line.text}</Text>
+        ))}
+      </Box>
     </Box>
   )
 }
