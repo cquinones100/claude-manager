@@ -34,6 +34,11 @@ export type ResumeTarget = {
   cwd: string | undefined
 }
 
+export type ThreadItem =
+  | { kind: "prompt"; timestamp: string; text: string }
+  | { kind: "text"; timestamp: string; text: string; model: string | undefined }
+  | { kind: "tool"; timestamp: string; name: string; description: string; result: string; isError: boolean }
+
 export type View =
   | { kind: "grid" }
   | { kind: "feed"; sessionId: string }

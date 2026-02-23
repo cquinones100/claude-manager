@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
-import { FeedEntry, EntryType, SessionSummary } from "./types.js"
+import { FeedEntry, EntryType, SessionSummary, ThreadItem } from "./types.js"
 
 const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
@@ -31,6 +31,21 @@ function extractTextContent(content: unknown): string {
     .filter((block: Record<string, unknown>) => block.type === "text")
     .map((block: Record<string, unknown>) => block.text as string)
     .join("\n")
+}
+
+export function toolCallDescription(
+  name: string,
+  input: Record<string, unknown> | undefined
+): string {
+  let preview = name
+  if (input) {
+    if (input.command) preview += `: ${input.command}`
+    else if (input.file_path) preview += `: ${input.file_path}`
+    else if (input.pattern) preview += `: ${input.pattern}`
+    else if (input.query) preview += `: ${input.query}`
+    else if (input.prompt) preview += `: ${String(input.prompt).slice(0, 80)}`
+  }
+  return preview
 }
 
 export function parseEntry(
@@ -107,15 +122,7 @@ export function parseEntry(
       } else if (block.type === "tool_use") {
         const name = block.name as string
         const input = block.input as Record<string, unknown> | undefined
-        let preview = name
-        if (input) {
-          // Show relevant input fields for common tools
-          if (input.command) preview += `: ${input.command}`
-          else if (input.file_path) preview += `: ${input.file_path}`
-          else if (input.pattern) preview += `: ${input.pattern}`
-          else if (input.query) preview += `: ${input.query}`
-          else if (input.prompt) preview += `: ${String(input.prompt).slice(0, 80)}`
-        }
+        const preview = toolCallDescription(name, input)
         entries.push({
           timestamp,
           project,
@@ -246,4 +253,101 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
   summaries.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime())
 
   return summaries
+}
+
+export function parseSessionThread(lines: Record<string, unknown>[]): ThreadItem[] {
+  const items: ThreadItem[] = []
+  const pendingTools = new Map<string, ThreadItem & { kind: "tool" }>()
+
+  lines.forEach((raw) => {
+    const type = raw.type as string
+    const timestamp = raw.timestamp as string
+    const message = raw.message as Record<string, unknown> | undefined
+
+    if (!message || !timestamp) return
+    if (type !== "user" && type !== "assistant") return
+
+    const role = message.role as string
+    const content = message.content
+    const model = (message.model as string) || undefined
+
+    if (role === "user") {
+      if (typeof content === "string") {
+        items.push({ kind: "prompt", timestamp, text: content })
+      } else if (Array.isArray(content)) {
+        content.forEach((block: Record<string, unknown>) => {
+          if (block.type === "tool_result") {
+            const toolUseId = block.tool_use_id as string
+            const pending = pendingTools.get(toolUseId)
+            if (pending) {
+              const resultContent = block.content
+              pending.result =
+                typeof resultContent === "string"
+                  ? resultContent
+                  : extractTextContent(resultContent)
+              pending.isError = block.is_error === true
+              pendingTools.delete(toolUseId)
+            }
+          }
+        })
+      }
+    }
+
+    if (role === "assistant" && Array.isArray(content)) {
+      content.forEach((block: Record<string, unknown>) => {
+        if (block.type === "text") {
+          const text = block.text as string
+          if (text) {
+            items.push({ kind: "text", timestamp, text, model })
+          }
+        } else if (block.type === "tool_use") {
+          const name = block.name as string
+          const input = block.input as Record<string, unknown> | undefined
+          const id = block.id as string
+          const item: ThreadItem & { kind: "tool" } = {
+            kind: "tool",
+            timestamp,
+            name,
+            description: toolCallDescription(name, input),
+            result: "",
+            isError: false,
+          }
+          items.push(item)
+          if (id) {
+            pendingTools.set(id, item)
+          }
+        }
+        // Skip thinking blocks
+      })
+    }
+  })
+
+  return items
+}
+
+export async function loadSessionThread(sessionId: string): Promise<ThreadItem[]> {
+  const projectDirs = await readdir(CLAUDE_DIR).catch((): string[] => [])
+
+  for (const dirName of projectDirs) {
+    const dirPath = join(CLAUDE_DIR, dirName)
+    const files = await readdir(dirPath).catch((): string[] => [])
+    const match = files.find((f) => f === `${sessionId}.jsonl`)
+    if (!match) continue
+
+    const text = await readFile(join(dirPath, match), "utf-8")
+    const lines: Record<string, unknown>[] = []
+
+    text.split("\n").forEach((line) => {
+      if (!line.trim()) return
+      try {
+        lines.push(JSON.parse(line) as Record<string, unknown>)
+      } catch {
+        // Skip malformed lines
+      }
+    })
+
+    return parseSessionThread(lines)
+  }
+
+  return []
 }

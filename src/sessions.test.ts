@@ -3,11 +3,14 @@ import {
   truncate,
   projectNameFromDir,
   parseEntry,
+  toolCallDescription,
+  parseSessionThread,
   loadAllSessions,
+  loadSessionThread,
   deriveSessions,
   formatRelativeTime,
 } from "./sessions.js"
-import { FeedEntry } from "./types.js"
+import { FeedEntry, ThreadItem } from "./types.js"
 
 describe("truncate", () => {
   it("returns short strings unchanged", () => {
@@ -204,6 +207,7 @@ function makeEntry(overrides: Partial<FeedEntry> = {}): FeedEntry {
     timestamp: new Date().toISOString(),
     project: "test-project",
     session: "session-1",
+    cwd: undefined,
     type: "prompt",
     model: undefined,
     content: "hello",
@@ -286,6 +290,316 @@ describe("deriveSessions", () => {
     ]
     const sessions = deriveSessions(entries)
     expect(sessions[0].project).toBe("newest-project")
+  })
+})
+
+describe("toolCallDescription", () => {
+  it("generates description for Bash with command input", () => {
+    expect(toolCallDescription("Bash", { command: "ls -la" })).toBe("Bash: ls -la")
+  })
+
+  it("generates description for Read with file_path input", () => {
+    expect(toolCallDescription("Read", { file_path: "/foo/bar.ts" })).toBe(
+      "Read: /foo/bar.ts"
+    )
+  })
+
+  it("generates description for Glob with pattern input", () => {
+    expect(toolCallDescription("Glob", { pattern: "*.ts" })).toBe("Glob: *.ts")
+  })
+
+  it("returns just the name when no recognized input fields", () => {
+    expect(toolCallDescription("CustomTool", { something: "else" })).toBe(
+      "CustomTool"
+    )
+  })
+
+  it("returns just the name when input is undefined", () => {
+    expect(toolCallDescription("Bash", undefined)).toBe("Bash")
+  })
+})
+
+describe("parseSessionThread", () => {
+  it("converts user string content to prompt item", () => {
+    const lines = [
+      {
+        type: "user",
+        timestamp: "2026-02-23T17:48:57.041Z",
+        message: { role: "user", content: "hello world" },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(1)
+    expect(items[0].kind).toBe("prompt")
+    if (items[0].kind === "prompt") {
+      expect(items[0].text).toBe("hello world")
+    }
+  })
+
+  it("converts assistant text block to text item", () => {
+    const lines = [
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.452Z",
+        message: {
+          role: "assistant",
+          model: "claude-opus-4-6",
+          content: [{ type: "text", text: "Here is the answer." }],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(1)
+    expect(items[0].kind).toBe("text")
+    if (items[0].kind === "text") {
+      expect(items[0].text).toBe("Here is the answer.")
+      expect(items[0].model).toBe("claude-opus-4-6")
+    }
+  })
+
+  it("converts assistant tool_use to tool item with empty result", () => {
+    const lines = [
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.527Z",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_abc",
+              name: "Bash",
+              input: { command: "ls -la" },
+            },
+          ],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(1)
+    expect(items[0].kind).toBe("tool")
+    if (items[0].kind === "tool") {
+      expect(items[0].name).toBe("Bash")
+      expect(items[0].description).toBe("Bash: ls -la")
+      expect(items[0].result).toBe("")
+      expect(items[0].isError).toBe(false)
+    }
+  })
+
+  it("fills tool result from matching user tool_result", () => {
+    const lines = [
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.527Z",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_abc",
+              name: "Bash",
+              input: { command: "ls" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        timestamp: "2026-02-23T17:49:01.529Z",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_abc",
+              content: "file1.ts\nfile2.ts",
+            },
+          ],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(1)
+    if (items[0].kind === "tool") {
+      expect(items[0].result).toBe("file1.ts\nfile2.ts")
+      expect(items[0].isError).toBe(false)
+    }
+  })
+
+  it("marks error tool results", () => {
+    const lines = [
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.527Z",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_abc",
+              name: "Bash",
+              input: { command: "bad-cmd" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        timestamp: "2026-02-23T17:49:01.529Z",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_abc",
+              content: "command not found",
+              is_error: true,
+            },
+          ],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    if (items[0].kind === "tool") {
+      expect(items[0].isError).toBe(true)
+    }
+  })
+
+  it("skips thinking blocks", () => {
+    const lines = [
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.452Z",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "hmm let me think..." },
+            { type: "text", text: "Here's my answer." },
+          ],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(1)
+    expect(items[0].kind).toBe("text")
+  })
+
+  it("skips progress and system entry types", () => {
+    const lines = [
+      {
+        type: "progress",
+        timestamp: "2026-02-23T17:49:01.452Z",
+        message: { role: "assistant", content: "stuff" },
+      },
+      {
+        type: "system",
+        timestamp: "2026-02-23T17:49:01.452Z",
+        message: { role: "system", content: "init" },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(0)
+  })
+
+  it("handles missing tool result for interrupted sessions", () => {
+    const lines = [
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.527Z",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_abc",
+              name: "Bash",
+              input: { command: "sleep 100" },
+            },
+          ],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(1)
+    if (items[0].kind === "tool") {
+      expect(items[0].result).toBe("")
+    }
+  })
+
+  it("threads a full prompt-response-tool-result conversation", () => {
+    const lines = [
+      {
+        type: "user",
+        timestamp: "2026-02-23T17:48:57.041Z",
+        message: { role: "user", content: "list files" },
+      },
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:01.452Z",
+        message: {
+          role: "assistant",
+          model: "claude-opus-4-6",
+          content: [
+            { type: "text", text: "Let me check." },
+            {
+              type: "tool_use",
+              id: "toolu_abc",
+              name: "Bash",
+              input: { command: "ls" },
+            },
+          ],
+        },
+      },
+      {
+        type: "user",
+        timestamp: "2026-02-23T17:49:01.529Z",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_abc",
+              content: "src/\npackage.json",
+            },
+          ],
+        },
+      },
+      {
+        type: "assistant",
+        timestamp: "2026-02-23T17:49:02.000Z",
+        message: {
+          role: "assistant",
+          model: "claude-opus-4-6",
+          content: [{ type: "text", text: "Found 2 entries." }],
+        },
+      },
+    ]
+    const items = parseSessionThread(lines)
+    expect(items).toHaveLength(4)
+    expect(items[0].kind).toBe("prompt")
+    expect(items[1].kind).toBe("text")
+    expect(items[2].kind).toBe("tool")
+    expect(items[3].kind).toBe("text")
+    if (items[2].kind === "tool") {
+      expect(items[2].result).toBe("src/\npackage.json")
+    }
+  })
+})
+
+describe("loadSessionThread", () => {
+  it("loads a real session file and returns ThreadItems in order", async () => {
+    const { entries } = await loadAllSessions()
+    if (entries.length === 0) return
+
+    const sessionId = entries[0].session
+    const items = await loadSessionThread(sessionId)
+
+    expect(items.length).toBeGreaterThan(0)
+
+    items.forEach((item) => {
+      expect(["prompt", "text", "tool"]).toContain(item.kind)
+      expect(item.timestamp).toBeTruthy()
+    })
   })
 })
 
