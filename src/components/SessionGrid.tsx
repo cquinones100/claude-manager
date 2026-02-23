@@ -19,7 +19,7 @@ function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
   return (
     <Box
       flexDirection="column"
-      borderStyle="round"
+      borderStyle={isSelected ? "bold" : "round"}
       borderColor={isSelected ? "blue" : "gray"}
       paddingX={1}
       width={width}
