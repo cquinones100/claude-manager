@@ -4,7 +4,10 @@ import {
   projectNameFromDir,
   parseEntry,
   loadAllSessions,
+  deriveSessions,
+  formatRelativeTime,
 } from "./sessions.js"
+import { FeedEntry } from "./types.js"
 
 describe("truncate", () => {
   it("returns short strings unchanged", () => {
@@ -193,6 +196,96 @@ describe("parseEntry", () => {
       message: { role: "user", content: "hello" },
     }
     expect(parseEntry(raw, project, session)).toHaveLength(0)
+  })
+})
+
+function makeEntry(overrides: Partial<FeedEntry> = {}): FeedEntry {
+  return {
+    timestamp: new Date().toISOString(),
+    project: "test-project",
+    session: "session-1",
+    type: "prompt",
+    model: undefined,
+    content: "hello",
+    raw: {},
+    ...overrides,
+  }
+}
+
+describe("formatRelativeTime", () => {
+  it("returns 'just now' for times less than 60 seconds ago", () => {
+    const now = new Date()
+    expect(formatRelativeTime(now)).toBe("just now")
+    expect(formatRelativeTime(new Date(now.getTime() - 30_000))).toBe("just now")
+  })
+
+  it("returns minutes ago for times between 1 and 59 minutes", () => {
+    const threeMinAgo = new Date(Date.now() - 3 * 60_000)
+    expect(formatRelativeTime(threeMinAgo)).toBe("3m ago")
+  })
+
+  it("returns hours ago for times 60+ minutes", () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000)
+    expect(formatRelativeTime(twoHoursAgo)).toBe("2h ago")
+  })
+})
+
+describe("deriveSessions", () => {
+  it("groups entries by session correctly", () => {
+    const entries = [
+      makeEntry({ session: "s1", timestamp: new Date().toISOString() }),
+      makeEntry({ session: "s1", timestamp: new Date(Date.now() - 1000).toISOString() }),
+      makeEntry({ session: "s2", timestamp: new Date().toISOString() }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions).toHaveLength(2)
+    const s1 = sessions.find((s) => s.sessionId === "s1")
+    expect(s1?.entryCount).toBe(2)
+  })
+
+  it("filters to today's sessions only", () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const entries = [
+      makeEntry({ session: "today", timestamp: new Date().toISOString() }),
+      makeEntry({ session: "yesterday", timestamp: yesterday.toISOString() }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0].sessionId).toBe("today")
+  })
+
+  it("sorts by last activity descending", () => {
+    const earlier = new Date(Date.now() - 60_000)
+    const later = new Date()
+
+    const entries = [
+      makeEntry({ session: "s-early", timestamp: earlier.toISOString() }),
+      makeEntry({ session: "s-late", timestamp: later.toISOString() }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].sessionId).toBe("s-late")
+    expect(sessions[1].sessionId).toBe("s-early")
+  })
+
+  it("returns empty array when no entries match today", () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const entries = [
+      makeEntry({ session: "old", timestamp: yesterday.toISOString() }),
+    ]
+    expect(deriveSessions(entries)).toHaveLength(0)
+  })
+
+  it("uses the first entry's project as the session project", () => {
+    const entries = [
+      makeEntry({ session: "s1", project: "newest-project", timestamp: new Date().toISOString() }),
+      makeEntry({ session: "s1", project: "older-project", timestamp: new Date(Date.now() - 1000).toISOString() }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].project).toBe("newest-project")
   })
 })
 

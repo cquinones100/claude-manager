@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { Box, Text, useInput, useApp, useStdout } from "ink"
 import Spinner from "ink-spinner"
-import { loadAllSessions } from "../sessions.js"
-import { FeedEntry, EntryType } from "../types.js"
+import { loadAllSessions, deriveSessions } from "../sessions.js"
+import { FeedEntry, EntryType, View } from "../types.js"
 import { FeedItem } from "./FeedItem.js"
 import { FilterBar } from "./FilterBar.js"
+import { SessionGrid } from "./SessionGrid.js"
 
 const ALL_TYPES: EntryType[] = ["prompt", "response", "tool_use", "tool_result"]
 
@@ -16,6 +17,7 @@ export function App() {
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<FeedEntry[]>([])
   const [projects, setProjects] = useState<string[]>([])
+  const [view, setView] = useState<View>({ kind: "grid" })
   const [cursor, setCursor] = useState(0)
   const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set())
   const [activeProject, setActiveProject] = useState<string | null>(null)
@@ -33,13 +35,16 @@ export function App() {
     })
   }, [])
 
+  const sessions = useMemo(() => deriveSessions(entries), [entries])
+
   const filtered = useMemo(() => {
     return entries.filter((e) => {
+      if (view.kind === "feed" && e.session !== view.sessionId) return false
       if (activeProject && e.project !== activeProject) return false
       if (!activeTypes.has(e.type)) return false
       return true
     })
-  }, [entries, activeProject, activeTypes])
+  }, [entries, activeProject, activeTypes, view])
 
   // Visible window — reserve lines for the filter bar (5 lines) and header
   const visibleCount = Math.max(1, termHeight - 7)
@@ -58,6 +63,14 @@ export function App() {
 
     if (input === "q") {
       exit()
+      return
+    }
+    if (view.kind === "grid") return
+    if (key.escape || input === "b") {
+      setView({ kind: "grid" })
+      setCursor(0)
+      setExpandedSet(new Set())
+      setActiveProject(null)
       return
     }
     if (key.upArrow) {
@@ -180,6 +193,19 @@ export function App() {
           ))}
         </Box>
       </Box>
+    )
+  }
+
+  if (view.kind === "grid") {
+    return (
+      <SessionGrid
+        sessions={sessions}
+        onSelect={(sessionId) => {
+          setView({ kind: "feed", sessionId })
+          setCursor(0)
+          setExpandedSet(new Set())
+        }}
+      />
     )
   }
 

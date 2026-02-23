@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
-import { FeedEntry, EntryType } from "./types.js"
+import { FeedEntry, EntryType, SessionSummary } from "./types.js"
 
 const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
@@ -184,4 +184,56 @@ export async function loadAllSessions(): Promise<{
     entries: allEntries,
     projects: [...projectSet].sort(),
   }
+}
+
+export function formatRelativeTime(date: Date): string {
+  const diffMs = Date.now() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  if (diffSec < 60) return "just now"
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  return `${diffHr}h ago`
+}
+
+export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
+  const groups = entries.reduce((map, entry) => {
+    const group = map.get(entry.session)
+    if (group) {
+      group.push(entry)
+    } else {
+      map.set(entry.session, [entry])
+    }
+    return map
+  }, new Map<string, FeedEntry[]>())
+
+  const now = new Date()
+  const todayYear = now.getFullYear()
+  const todayMonth = now.getMonth()
+  const todayDay = now.getDate()
+
+  const summaries: SessionSummary[] = []
+
+  groups.forEach((group, sessionId) => {
+    // Entries are already sorted newest-first, so first entry has the latest timestamp
+    const newest = group[0]
+    const lastActivityAt = new Date(newest.timestamp)
+
+    if (
+      lastActivityAt.getFullYear() === todayYear &&
+      lastActivityAt.getMonth() === todayMonth &&
+      lastActivityAt.getDate() === todayDay
+    ) {
+      summaries.push({
+        sessionId,
+        project: newest.project,
+        lastActivityAt,
+        entryCount: group.length,
+      })
+    }
+  })
+
+  summaries.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime())
+
+  return summaries
 }

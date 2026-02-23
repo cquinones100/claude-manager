@@ -19,3 +19,14 @@ export type TypeFilter = {
   type: EntryType
   selected: boolean
 }
+
+export type SessionSummary = {
+  sessionId: string
+  project: string
+  lastActivityAt: Date
+  entryCount: number
+}
+
+export type View =
+  | { kind: "grid" }
+  | { kind: "feed"; sessionId: string }
