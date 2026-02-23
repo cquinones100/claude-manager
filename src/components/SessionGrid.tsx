@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
@@ -11,16 +11,19 @@ const CHROME_LINES = 4 // padding + title + footer
 type SessionCardProps = {
   session: SessionSummary
   isSelected: boolean
+  isPulsing: boolean
   width: number
   height: number
 }
 
-function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
+function SessionCard({ session, isSelected, isPulsing, width, height }: SessionCardProps) {
+  const borderColor = isPulsing ? "green" : isSelected ? "blue" : "gray"
+
   return (
     <Box
       flexDirection="column"
-      borderStyle={isSelected ? "bold" : "round"}
-      borderColor={isSelected ? "blue" : "gray"}
+      borderStyle={isSelected || isPulsing ? "bold" : "round"}
+      borderColor={borderColor}
       paddingX={1}
       width={width}
       height={height}
@@ -52,6 +55,8 @@ type SessionGridProps = {
   onResume: (target: ResumeTarget) => void
 }
 
+const PULSE_DURATION = 1500
+
 export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
@@ -61,6 +66,32 @@ export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) 
   const cellHeight = Math.floor((termHeight - CHROME_LINES) / ROWS)
 
   const [cursor, setCursor] = useState(0)
+  const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set())
+  const prevCountsRef = useRef<Map<string, number>>(new Map())
+
+  useEffect(() => {
+    const prev = prevCountsRef.current
+    const updated = new Set<string>()
+
+    sessions.forEach((s) => {
+      const old = prev.get(s.sessionId)
+      if (old !== undefined && old !== s.entryCount) {
+        updated.add(s.sessionId)
+      }
+      prev.set(s.sessionId, s.entryCount)
+    })
+
+    if (updated.size > 0) {
+      setPulsingIds((current) => new Set([...current, ...updated]))
+      setTimeout(() => {
+        setPulsingIds((current) => {
+          const next = new Set(current)
+          updated.forEach((id) => next.delete(id))
+          return next
+        })
+      }, PULSE_DURATION)
+    }
+  }, [sessions])
 
   const totalRows = Math.ceil(sessions.length / COLS)
   const cursorRow = Math.floor(cursor / COLS)
@@ -129,6 +160,7 @@ export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) 
                     key={session.sessionId}
                     session={session}
                     isSelected={globalIdx === cursor}
+                    isPulsing={pulsingIds.has(session.sessionId)}
                     width={cellWidth}
                     height={cellHeight}
                   />
