@@ -53,11 +53,12 @@ type SessionGridProps = {
   sessions: SessionSummary[]
   onSelect: (sessionId: string) => void
   onResume: (target: ResumeTarget) => void
+  onHide: (sessionId: string) => void
 }
 
 const PULSE_DURATION = 1500
 
-export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) {
+export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
   const termHeight = stdout?.rows ?? 24
@@ -121,6 +122,13 @@ export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) 
         onResume({ sessionId: session.sessionId, cwd: session.cwd })
       }
     }
+    if (input === "d") {
+      const session = sessions[cursor]
+      if (session) {
+        onHide(session.sessionId)
+        setCursor((c) => Math.min(c, sessions.length - 2))
+      }
+    }
   })
 
   if (sessions.length === 0) {
@@ -180,6 +188,7 @@ export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) 
         <Text dimColor>←↑↓→ navigate</Text>
         <Text dimColor>enter: open</Text>
         <Text dimColor>r: resume</Text>
+        <Text dimColor>d: hide</Text>
         <Text dimColor>q: quit</Text>
       </Box>
     </Box>

@@ -3,6 +3,7 @@ import { Box, Text, useInput, useApp } from "ink"
 import Spinner from "ink-spinner"
 import { watch } from "node:fs"
 import { loadAllSessions, deriveSessions, loadSessionThread, CLAUDE_DIR } from "../sessions.js"
+import { loadHidden, addHidden } from "../hidden.js"
 import { FeedEntry, ResumeTarget, View, ThreadItem } from "../types.js"
 import { SessionGrid } from "./SessionGrid.js"
 import { ThreadView } from "./ThreadView.js"
@@ -19,13 +20,15 @@ export function App({ onResume }: AppProps) {
   const [view, setView] = useState<View>({ kind: "grid" })
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([])
   const [threadLoading, setThreadLoading] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
 
   const viewRef = useRef(view)
   viewRef.current = view
 
   useEffect(() => {
-    loadAllSessions().then(({ entries }) => {
+    Promise.all([loadAllSessions(), loadHidden()]).then(([{ entries }, hidden]) => {
       setEntries(entries)
+      setHiddenIds(hidden)
       setLoading(false)
     })
   }, [])
@@ -63,7 +66,10 @@ export function App({ onResume }: AppProps) {
     }
   }, [])
 
-  const sessions = useMemo(() => deriveSessions(entries), [entries])
+  const sessions = useMemo(
+    () => deriveSessions(entries).filter((s) => !hiddenIds.has(s.sessionId)),
+    [entries, hiddenIds],
+  )
 
   useInput((input) => {
     if (input === "q") {
@@ -94,6 +100,10 @@ export function App({ onResume }: AppProps) {
         onResume={(target) => {
           onResume(target)
           exit()
+        }}
+        onHide={(sessionId) => {
+          addHidden(sessionId)
+          setHiddenIds((prev) => new Set([...prev, sessionId]))
         }}
       />
     )
