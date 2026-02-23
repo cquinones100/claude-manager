@@ -236,6 +236,7 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
       summaries.push({
         sessionId,
         project: newest.project,
+        cwd: newest.cwd,
         lastActivityAt,
         entryCount: group.length,
       })

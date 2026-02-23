@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
-import { SessionSummary } from "../types.js"
+import { ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime } from "../sessions.js"
 
 type SessionCardProps = {
@@ -34,9 +34,10 @@ function SessionCard({ session, isSelected }: SessionCardProps) {
 type SessionGridProps = {
   sessions: SessionSummary[]
   onSelect: (sessionId: string) => void
+  onResume: (target: ResumeTarget) => void
 }
 
-export function SessionGrid({ sessions, onSelect }: SessionGridProps) {
+export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
   const columnCount = Math.max(1, Math.floor(termWidth / 32))
@@ -60,6 +61,12 @@ export function SessionGrid({ sessions, onSelect }: SessionGridProps) {
     }
     if (key.return) {
       onSelect(sessions[cursor].sessionId)
+    }
+    if (input === "r") {
+      const session = sessions[cursor]
+      if (session) {
+        onResume({ sessionId: session.sessionId, cwd: session.cwd })
+      }
     }
   })
 
@@ -104,6 +111,7 @@ export function SessionGrid({ sessions, onSelect }: SessionGridProps) {
       <Box marginTop={1} gap={2}>
         <Text dimColor>arrows: navigate</Text>
         <Text dimColor>enter: open</Text>
+        <Text dimColor>r: resume</Text>
         <Text dimColor>q: quit</Text>
       </Box>
     </Box>

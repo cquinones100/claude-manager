@@ -24,8 +24,14 @@ export type TypeFilter = {
 export type SessionSummary = {
   sessionId: string
   project: string
+  cwd: string | undefined
   lastActivityAt: Date
   entryCount: number
+}
+
+export type ResumeTarget = {
+  sessionId: string
+  cwd: string | undefined
 }
 
 export type View =

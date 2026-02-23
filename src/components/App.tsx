@@ -2,17 +2,12 @@ import React, { useState, useEffect, useMemo } from "react"
 import { Box, Text, useInput, useApp, useStdout } from "ink"
 import Spinner from "ink-spinner"
 import { loadAllSessions, deriveSessions } from "../sessions.js"
-import { FeedEntry, EntryType, View } from "../types.js"
+import { FeedEntry, EntryType, ResumeTarget, View } from "../types.js"
 import { FeedItem } from "./FeedItem.js"
 import { FilterBar } from "./FilterBar.js"
 import { SessionGrid } from "./SessionGrid.js"
 
 const ALL_TYPES: EntryType[] = ["prompt", "response", "tool_use", "tool_result"]
-
-type ResumeTarget = {
-  sessionId: string
-  cwd: string | undefined
-}
 
 type AppProps = {
   onResume: (target: ResumeTarget) => void
@@ -221,6 +216,10 @@ export function App({ onResume }: AppProps) {
           setView({ kind: "feed", sessionId })
           setCursor(0)
           setExpandedSet(new Set())
+        }}
+        onResume={(target) => {
+          onResume(target)
+          exit()
         }}
       />
     )
