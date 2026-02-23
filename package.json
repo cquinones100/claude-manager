@@ -4,6 +4,7 @@
   "description": "Interactive feed of Claude Code sessions",
   "type": "module",
   "scripts": {
+    "dev": "node --watch --watch-path=src --import tsx src/cli.tsx",
     "start": "pnpm tsx src/cli.tsx",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
