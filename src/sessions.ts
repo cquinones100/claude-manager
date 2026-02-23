@@ -12,14 +12,13 @@ export function truncate(text: string, max = 200): string {
 }
 
 export function projectNameFromDir(dirName: string): string {
-  // Dir names look like "-Users-cquinones-editor-configs"
-  // Extract the last segment as the project name
-  const parts = dirName.split("-").filter(Boolean)
-  // Skip leading path segments (Users, username) — take last meaningful segment(s)
-  // The dir name encodes the full path, so we grab everything after the username
-  const userIdx = parts.indexOf("Users")
-  if (userIdx !== -1 && userIdx + 2 < parts.length) {
-    return parts.slice(userIdx + 2).join("-")
+  // Dir names encode absolute paths with "/" replaced by "-", e.g.
+  // "-Users-cquinones-claude-feed" for /Users/cquinones/claude-feed.
+  // The encoding is lossy (hyphens in names are indistinguishable from
+  // path separators), so we strip the known home prefix and keep the rest as-is.
+  const encodedHome = homedir().replaceAll("/", "-")
+  if (dirName.startsWith(encodedHome + "-")) {
+    return "~/" + dirName.slice(encodedHome.length + 1)
   }
   return dirName
 }
@@ -287,9 +286,14 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
 
       const { model, gitBranch } = extractSessionMeta(group)
 
+      const home = homedir()
+      const project = newest.cwd?.startsWith(home)
+        ? "~" + newest.cwd.slice(home.length)
+        : newest.project
+
       summaries.push({
         sessionId,
-        project: newest.project,
+        project,
         cwd: newest.cwd,
         lastActivityAt,
         entryCount: group.length,

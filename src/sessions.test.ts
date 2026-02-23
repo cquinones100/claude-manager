@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest"
+import { homedir } from "node:os"
 import {
   truncate,
   projectNameFromDir,
@@ -31,16 +32,19 @@ describe("truncate", () => {
 })
 
 describe("projectNameFromDir", () => {
-  it("extracts project name from encoded path", () => {
-    expect(projectNameFromDir("-Users-cquinones-editor-configs")).toBe(
-      "editor-configs"
+  it("strips the home directory prefix and keeps the rest as-is", () => {
+    const encoded = homedir().replaceAll("/", "-")
+    expect(projectNameFromDir(`${encoded}-claude-feed`)).toBe("~/claude-feed")
+    expect(projectNameFromDir(`${encoded}-editor-configs`)).toBe(
+      "~/editor-configs"
     )
   })
 
-  it("handles multi-segment project names", () => {
+  it("preserves hyphens in nested path names", () => {
+    const encoded = homedir().replaceAll("/", "-")
     expect(
-      projectNameFromDir("-Users-cquinones-my-cool-project")
-    ).toBe("my-cool-project")
+      projectNameFromDir(`${encoded}-deliberations-public-will-weekly`)
+    ).toBe("~/deliberations-public-will-weekly")
   })
 
   it("returns raw name when pattern does not match", () => {
