@@ -1,0 +1,23 @@
+{
+  "name": "claude-feed",
+  "version": "1.0.0",
+  "description": "Interactive feed of Claude Code sessions",
+  "type": "module",
+  "scripts": {
+    "start": "pnpm tsx src/cli.tsx",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ink": "^5.1.0",
+    "ink-spinner": "^5.0.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "@types/react": "^18.3.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.18"
+  }
+}
