@@ -29,7 +29,7 @@ function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
         {formatRelativeTime(session.lastActivityAt)} · {session.entryCount} entries
       </Text>
       {session.preview.map((line, i) => (
-        <Text key={i} dimColor>{line.label}: {line.text}</Text>
+        <Text key={i} color={line.label === "User" ? "green" : "cyan"} dimColor>{line.label}: {line.text}</Text>
       ))}
     </Box>
   )

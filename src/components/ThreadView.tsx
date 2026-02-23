@@ -164,13 +164,13 @@ function TextRow({ item, cursor, isExpanded }: RowProps & { item: ThreadItem & {
       <Box>
         {cursor}
         <Text>{"  "}</Text>
-        <Text wrap="truncate">
+        <Text color="cyan" wrap="truncate">
           {isExpanded ? "" : truncate(preview.replace(/\n/g, " "), 120)}
         </Text>
       </Box>
       {isExpanded && (
         <Box marginLeft={4} flexDirection="column">
-          <Text>{item.text}</Text>
+          <Text color="cyan">{item.text}</Text>
           {item.model && <Text dimColor>model: {item.model}</Text>}
         </Box>
       )}
