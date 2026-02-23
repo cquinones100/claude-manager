@@ -9,7 +9,16 @@ import { SessionGrid } from "./SessionGrid.js"
 
 const ALL_TYPES: EntryType[] = ["prompt", "response", "tool_use", "tool_result"]
 
-export function App() {
+type ResumeTarget = {
+  sessionId: string
+  cwd: string | undefined
+}
+
+type AppProps = {
+  onResume: (target: ResumeTarget) => void
+}
+
+export function App({ onResume }: AppProps) {
   const { exit } = useApp()
   const { stdout } = useStdout()
   const termHeight = stdout?.rows ?? 24
@@ -89,6 +98,14 @@ export function App() {
         }
         return next
       })
+    }
+    if (input === "r") {
+      const entry = filtered[cursor]
+      if (entry) {
+        onResume({ sessionId: entry.session, cwd: entry.cwd })
+        exit()
+      }
+      return
     }
     if (input === "f") {
       setProjectPickerOpen(true)

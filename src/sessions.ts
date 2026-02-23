@@ -36,7 +36,8 @@ function extractTextContent(content: unknown): string {
 export function parseEntry(
   raw: Record<string, unknown>,
   project: string,
-  session: string
+  session: string,
+  cwd: string | undefined
 ): FeedEntry[] {
   const entries: FeedEntry[] = []
   const type = raw.type as string
@@ -56,6 +57,7 @@ export function parseEntry(
         timestamp,
         project,
         session,
+        cwd,
         type: "prompt",
         model: undefined,
         content: truncate(content),
@@ -74,6 +76,7 @@ export function parseEntry(
               timestamp,
               project,
               session,
+              cwd,
               type: "tool_result",
               model: undefined,
               content: truncate(text),
@@ -94,6 +97,7 @@ export function parseEntry(
             timestamp,
             project,
             session,
+            cwd,
             type: "response",
             model,
             content: truncate(text),
@@ -116,6 +120,7 @@ export function parseEntry(
           timestamp,
           project,
           session,
+          cwd,
           type: "tool_use",
           model,
           content: truncate(preview),
@@ -136,12 +141,16 @@ async function parseSessionFile(
   const session = basename(filePath, ".jsonl")
   const text = await readFile(filePath, "utf-8")
   const entries: FeedEntry[] = []
+  let cwd: string | undefined
 
   text.split("\n").forEach((line) => {
     if (!line.trim()) return
     try {
       const raw = JSON.parse(line) as Record<string, unknown>
-      entries.push(...parseEntry(raw, project, session))
+      if (!cwd && typeof raw.cwd === "string") {
+        cwd = raw.cwd
+      }
+      entries.push(...parseEntry(raw, project, session, cwd))
     } catch {
       // Skip malformed lines
     }

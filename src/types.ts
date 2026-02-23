@@ -4,6 +4,7 @@ export type FeedEntry = {
   timestamp: string
   project: string
   session: string
+  cwd: string | undefined
   type: EntryType
   model: string | undefined
   content: string

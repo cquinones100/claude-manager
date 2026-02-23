@@ -47,6 +47,7 @@ export function FilterBar({
         <Text dimColor>enter expand</Text>
         <Text dimColor>f filter project</Text>
         <Text dimColor>t toggle types</Text>
+        <Text dimColor>r resume</Text>
         <Text dimColor>q quit</Text>
       </Box>
     </Box>

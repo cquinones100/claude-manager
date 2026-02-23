@@ -58,7 +58,7 @@ describe("parseEntry", () => {
         content: "make a CLI tool",
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries).toHaveLength(1)
     expect(entries[0].type).toBe("prompt")
     expect(entries[0].content).toBe("make a CLI tool")
@@ -76,7 +76,7 @@ describe("parseEntry", () => {
         content: [{ type: "text", text: "Here is the answer." }],
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries).toHaveLength(1)
     expect(entries[0].type).toBe("response")
     expect(entries[0].content).toBe("Here is the answer.")
@@ -99,7 +99,7 @@ describe("parseEntry", () => {
         ],
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries).toHaveLength(1)
     expect(entries[0].type).toBe("tool_use")
     expect(entries[0].content).toBe("Bash: ls -la")
@@ -120,7 +120,7 @@ describe("parseEntry", () => {
         ],
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries[0].content).toBe("Read: /foo/bar.ts")
   })
 
@@ -139,7 +139,7 @@ describe("parseEntry", () => {
         ],
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries).toHaveLength(1)
     expect(entries[0].type).toBe("tool_result")
     expect(entries[0].content).toBe("File created successfully")
@@ -158,7 +158,7 @@ describe("parseEntry", () => {
         ],
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries).toHaveLength(2)
     expect(entries[0].type).toBe("response")
     expect(entries[1].type).toBe("tool_use")
@@ -176,7 +176,7 @@ describe("parseEntry", () => {
         ],
       },
     }
-    const entries = parseEntry(raw, project, session)
+    const entries = parseEntry(raw, project, session, undefined)
     expect(entries).toHaveLength(1)
     expect(entries[0].type).toBe("response")
   })
@@ -187,7 +187,7 @@ describe("parseEntry", () => {
       timestamp: "2026-02-23T17:49:01.452Z",
       message: { role: "assistant", content: "stuff" },
     }
-    expect(parseEntry(raw, project, session)).toHaveLength(0)
+    expect(parseEntry(raw, project, session, undefined)).toHaveLength(0)
   })
 
   it("skips entries without a timestamp", () => {
@@ -195,7 +195,7 @@ describe("parseEntry", () => {
       type: "user",
       message: { role: "user", content: "hello" },
     }
-    expect(parseEntry(raw, project, session)).toHaveLength(0)
+    expect(parseEntry(raw, project, session, undefined)).toHaveLength(0)
   })
 })
 
