@@ -240,12 +240,21 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
       lastActivityAt.getMonth() === todayMonth &&
       lastActivityAt.getDate() === todayDay
     ) {
+      const latestPrompt = group.find((e) => e.type === "prompt")
+      const latestResponse = group.find((e) => e.type === "response")
+      const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim()
+      const preview = {
+        claude: flattenPreview(latestResponse?.content ?? ""),
+        user: flattenPreview(latestPrompt?.content ?? ""),
+      }
+
       summaries.push({
         sessionId,
         project: newest.project,
         cwd: newest.cwd,
         lastActivityAt,
         entryCount: group.length,
+        preview,
       })
     }
   })

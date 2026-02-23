@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { ThreadItem } from "../types.js"
 import { truncate } from "../sessions.js"
+import { Scrollbar } from "./Scrollbar.js"
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
@@ -70,20 +71,28 @@ export function ThreadView({ items, onBack, onResume }: ThreadViewProps) {
 
   return (
     <Box flexDirection="column">
-      <Box flexDirection="column">
-        {visibleItems.map((item, i) => {
-          const globalIdx = scrollOffset + i
-          const isSelected = globalIdx === cursor
-          const isExpanded = expandedSet.has(globalIdx)
-          return (
-            <ThreadItemRow
-              key={`${globalIdx}-${item.timestamp}`}
-              item={item}
-              isSelected={isSelected}
-              isExpanded={isExpanded}
-            />
-          )
-        })}
+      <Box>
+        <Box flexDirection="column" flexGrow={1}>
+          {visibleItems.map((item, i) => {
+            const globalIdx = scrollOffset + i
+            const isSelected = globalIdx === cursor
+            const isExpanded = expandedSet.has(globalIdx)
+            return (
+              <ThreadItemRow
+                key={`${globalIdx}-${item.timestamp}`}
+                item={item}
+                isSelected={isSelected}
+                isExpanded={isExpanded}
+              />
+            )
+          })}
+        </Box>
+        <Scrollbar
+          totalItems={items.length}
+          visibleCount={visibleCount}
+          scrollOffset={scrollOffset}
+          height={visibleCount}
+        />
       </Box>
       <Box paddingX={1} gap={2}>
         <Text dimColor>↑↓ navigate</Text>

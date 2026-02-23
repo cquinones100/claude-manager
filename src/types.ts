@@ -27,6 +27,7 @@ export type SessionSummary = {
   cwd: string | undefined
   lastActivityAt: Date
   entryCount: number
+  preview: { claude: string; user: string }
 }
 
 export type ResumeTarget = {

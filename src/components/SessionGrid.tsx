@@ -2,6 +2,7 @@ import React, { useState } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime } from "../sessions.js"
+import { Scrollbar } from "./Scrollbar.js"
 
 type SessionCardProps = {
   session: SessionSummary
@@ -9,24 +10,26 @@ type SessionCardProps = {
 }
 
 function SessionCard({ session, isSelected }: SessionCardProps) {
-  const truncatedProject =
-    session.project.length > 26
-      ? session.project.slice(0, 25) + "…"
-      : session.project
-
   return (
     <Box
-      width={32}
       flexDirection="column"
       borderStyle="round"
       borderColor={isSelected ? "cyan" : "gray"}
       paddingX={1}
     >
-      <Text bold={isSelected}>{truncatedProject}</Text>
-      <Text dimColor>
-        {formatRelativeTime(session.lastActivityAt)} · {session.entryCount}{" "}
-        entries
-      </Text>
+      <Box gap={2}>
+        <Text bold={isSelected}>{session.project}</Text>
+        <Text dimColor>
+          {formatRelativeTime(session.lastActivityAt)} · {session.entryCount}{" "}
+          entries
+        </Text>
+      </Box>
+      {session.preview.claude && (
+        <Text dimColor wrap="truncate">Claude: {session.preview.claude}</Text>
+      )}
+      {session.preview.user && (
+        <Text dimColor wrap="truncate">User: {session.preview.user}</Text>
+      )}
     </Box>
   )
 }
@@ -37,27 +40,23 @@ type SessionGridProps = {
   onResume: (target: ResumeTarget) => void
 }
 
+const CARD_HEIGHT = 5 // border top + header + claude preview + user preview + border bottom
+const CHROME_LINES = 6 // padding, title, margins, footer
+
 export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) {
   const { stdout } = useStdout()
-  const termWidth = stdout?.columns ?? 80
-  const columnCount = Math.max(1, Math.floor(termWidth / 32))
-
+  const termHeight = stdout?.rows ?? 24
+  const visibleCount = Math.max(1, Math.floor((termHeight - CHROME_LINES) / CARD_HEIGHT))
   const [cursor, setCursor] = useState(0)
 
   useInput((input, key) => {
     if (sessions.length === 0) return
 
-    if (key.leftArrow) {
+    if (key.upArrow) {
       setCursor((c) => Math.max(0, c - 1))
     }
-    if (key.rightArrow) {
-      setCursor((c) => Math.min(sessions.length - 1, c + 1))
-    }
-    if (key.upArrow) {
-      setCursor((c) => Math.max(0, c - columnCount))
-    }
     if (key.downArrow) {
-      setCursor((c) => Math.min(sessions.length - 1, c + columnCount))
+      setCursor((c) => Math.min(sessions.length - 1, c + 1))
     }
     if (key.return) {
       onSelect(sessions[cursor].sessionId)
@@ -84,32 +83,31 @@ export function SessionGrid({ sessions, onSelect, onResume }: SessionGridProps) 
     )
   }
 
-  const rows: SessionSummary[][] = []
-  for (let i = 0; i < sessions.length; i += columnCount) {
-    rows.push(sessions.slice(i, i + columnCount))
-  }
+  const scrollOffset = Math.max(0, Math.min(cursor - Math.floor(visibleCount / 2), sessions.length - visibleCount))
+  const visibleSessions = sessions.slice(scrollOffset, scrollOffset + visibleCount)
 
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold>Today's Sessions ({sessions.length})</Text>
-      <Box flexDirection="column" marginTop={1}>
-        {rows.map((row, rowIdx) => (
-          <Box key={rowIdx}>
-            {row.map((session, colIdx) => {
-              const idx = rowIdx * columnCount + colIdx
-              return (
-                <SessionCard
-                  key={session.sessionId}
-                  session={session}
-                  isSelected={idx === cursor}
-                />
-              )
-            })}
-          </Box>
-        ))}
+      <Box marginTop={1}>
+        <Box flexDirection="column" flexGrow={1}>
+          {visibleSessions.map((session, i) => (
+            <SessionCard
+              key={session.sessionId}
+              session={session}
+              isSelected={scrollOffset + i === cursor}
+            />
+          ))}
+        </Box>
+        <Scrollbar
+          totalItems={sessions.length}
+          visibleCount={visibleCount}
+          scrollOffset={scrollOffset}
+          height={visibleCount * CARD_HEIGHT}
+        />
       </Box>
       <Box marginTop={1} gap={2}>
-        <Text dimColor>arrows: navigate</Text>
+        <Text dimColor>↑↓ navigate</Text>
         <Text dimColor>enter: open</Text>
         <Text dimColor>r: resume</Text>
         <Text dimColor>q: quit</Text>
