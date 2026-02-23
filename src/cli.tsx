@@ -3,18 +3,27 @@ import React from "react"
 import { render } from "ink"
 import { spawnSync } from "node:child_process"
 import { App } from "./components/App.js"
+import { ResumeTarget } from "./types.js"
 
-let resumeSessionId: string | null = null
-let resumeCwd: string | undefined
+async function run() {
+  let resumeTarget: ResumeTarget | null = null
 
-const { waitUntilExit } = render(
-  <App onResume={({ sessionId, cwd }) => { resumeSessionId = sessionId; resumeCwd = cwd }} />
-)
-await waitUntilExit()
+  const { waitUntilExit } = render(
+    <App onResume={(target) => { resumeTarget = target }} />
+  )
+  await waitUntilExit()
 
-if (resumeSessionId) {
-  spawnSync("claude", ["--resume", resumeSessionId], {
+  return resumeTarget
+}
+
+let target: ResumeTarget | null = await run()
+
+while (target) {
+  const { sessionId, cwd } = target
+  spawnSync("claude", ["--resume", sessionId], {
     stdio: "inherit",
-    cwd: resumeCwd,
+    cwd,
   })
+
+  target = await run()
 }
