@@ -24,12 +24,9 @@ function SessionCard({ session, isSelected }: SessionCardProps) {
           entries
         </Text>
       </Box>
-      {session.preview.claude && (
-        <Text dimColor wrap="truncate">Claude: {session.preview.claude}</Text>
-      )}
-      {session.preview.user && (
-        <Text dimColor wrap="truncate">User: {session.preview.user}</Text>
-      )}
+      {session.preview.map((line, i) => (
+        <Text key={i} dimColor wrap="truncate">{line.label}: {line.text}</Text>
+      ))}
     </Box>
   )
 }

@@ -292,15 +292,17 @@ describe("deriveSessions", () => {
     expect(sessions[0].project).toBe("newest-project")
   })
 
-  it("uses the latest prompt and response as the preview", () => {
+  it("uses the last two conversation lines as the preview", () => {
     const entries = [
       makeEntry({ session: "s1", type: "prompt", content: "latest prompt", timestamp: new Date().toISOString() }),
       makeEntry({ session: "s1", type: "response", content: "a response", timestamp: new Date(Date.now() - 1000).toISOString() }),
       makeEntry({ session: "s1", type: "prompt", content: "older prompt", timestamp: new Date(Date.now() - 2000).toISOString() }),
     ]
     const sessions = deriveSessions(entries)
-    expect(sessions[0].preview.user).toBe("latest prompt")
-    expect(sessions[0].preview.claude).toBe("a response")
+    expect(sessions[0].preview).toEqual([
+      { label: "Claude", text: "a response" },
+      { label: "User", text: "latest prompt" },
+    ])
   })
 
   it("flattens newlines in preview text", () => {
@@ -309,8 +311,10 @@ describe("deriveSessions", () => {
       makeEntry({ session: "s1", type: "response", content: "hello\n\nworld", timestamp: new Date(Date.now() - 1000).toISOString() }),
     ]
     const sessions = deriveSessions(entries)
-    expect(sessions[0].preview.user).toBe("line one line two line three")
-    expect(sessions[0].preview.claude).toBe("hello world")
+    expect(sessions[0].preview).toEqual([
+      { label: "Claude", text: "hello world" },
+      { label: "User", text: "line one line two line three" },
+    ])
   })
 
   it("returns empty preview when session has no prompts or responses", () => {
@@ -318,8 +322,7 @@ describe("deriveSessions", () => {
       makeEntry({ session: "s1", type: "tool_use", content: "some tool", timestamp: new Date().toISOString() }),
     ]
     const sessions = deriveSessions(entries)
-    expect(sessions[0].preview.user).toBe("")
-    expect(sessions[0].preview.claude).toBe("")
+    expect(sessions[0].preview).toEqual([])
   })
 })
 
