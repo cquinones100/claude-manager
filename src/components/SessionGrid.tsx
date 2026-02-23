@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { ResumeTarget, SessionSummary } from "../types.js"
-import { formatRelativeTime } from "../sessions.js"
+import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
 
 const COLS = 3
@@ -30,7 +30,11 @@ function SessionCard({ session, isSelected, width, height }: SessionCardProps) {
       </Box>
       <Box flexShrink={0}>
         <Text dimColor wrap="truncate">
-          {formatRelativeTime(session.lastActivityAt)} · {session.entryCount} entries
+          {[
+            formatRelativeTime(session.lastActivityAt),
+            session.model && formatModelName(session.model),
+            session.gitBranch && `\u2387 ${session.gitBranch}`,
+          ].filter(Boolean).join(" · ")}
         </Text>
       </Box>
       <Box flexDirection="column" flexGrow={1} overflow="hidden">

@@ -202,6 +202,43 @@ export async function loadAllSessions(): Promise<{
   }
 }
 
+export function formatModelName(raw: string): string {
+  // "claude-opus-4-6" → "Opus 4.6"
+  // "claude-sonnet-4-6" → "Sonnet 4.6"
+  // "claude-haiku-4-5-20251001" → "Haiku 4.5"
+  const match = raw.match(/claude-(\w+)-(\d+)-(\d+)/)
+  if (match) {
+    const name = match[1].charAt(0).toUpperCase() + match[1].slice(1)
+    return `${name} ${match[2]}.${match[3]}`
+  }
+  return raw
+}
+
+function extractSessionMeta(group: FeedEntry[]): {
+  model: string | undefined
+  gitBranch: string | undefined
+} {
+  let model: string | undefined
+  let gitBranch: string | undefined
+
+  // Walk newest-first to find the latest values
+  for (const entry of group) {
+    const raw = entry.raw
+    if (!gitBranch && typeof raw.gitBranch === "string") {
+      gitBranch = raw.gitBranch
+    }
+
+    const message = raw.message as Record<string, unknown> | undefined
+    if (!model && message?.model) {
+      model = message.model as string
+    }
+
+    if (model && gitBranch) break
+  }
+
+  return { model, gitBranch }
+}
+
 export function formatRelativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime()
   const diffSec = Math.floor(diffMs / 1000)
@@ -248,6 +285,8 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         text: flattenPreview(e.content),
       }))
 
+      const { model, gitBranch } = extractSessionMeta(group)
+
       summaries.push({
         sessionId,
         project: newest.project,
@@ -255,6 +294,8 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         lastActivityAt,
         entryCount: group.length,
         preview,
+        model,
+        gitBranch,
       })
     }
   })

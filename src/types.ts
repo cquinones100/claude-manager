@@ -28,6 +28,8 @@ export type SessionSummary = {
   lastActivityAt: Date
   entryCount: number
   preview: Array<{ label: string; text: string }>
+  model: string | undefined
+  gitBranch: string | undefined
 }
 
 export type ResumeTarget = {
