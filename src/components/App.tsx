@@ -61,7 +61,8 @@ export function App({ onResume }: AppProps) {
       <SessionGrid
         sessions={sessions}
         onSelect={(sessionId) => {
-          setView({ kind: "feed", sessionId })
+          const session = sessions.find((s) => s.sessionId === sessionId)
+          setView({ kind: "feed", sessionId, cwd: session?.cwd })
         }}
         onResume={(target) => {
           onResume(target)
@@ -88,6 +89,12 @@ export function App({ onResume }: AppProps) {
       onBack={() => {
         setView({ kind: "grid" })
         setThreadItems([])
+      }}
+      onResume={() => {
+        if (view.kind === "feed") {
+          onResume({ sessionId: view.sessionId, cwd: view.cwd })
+          exit()
+        }
       }}
     />
   )

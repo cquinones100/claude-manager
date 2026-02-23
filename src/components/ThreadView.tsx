@@ -13,9 +13,10 @@ function formatTime(iso: string): string {
 type ThreadViewProps = {
   items: ThreadItem[]
   onBack: () => void
+  onResume: () => void
 }
 
-export function ThreadView({ items, onBack }: ThreadViewProps) {
+export function ThreadView({ items, onBack, onResume }: ThreadViewProps) {
   const { stdout } = useStdout()
   const termHeight = stdout?.rows ?? 24
   const [cursor, setCursor] = useState(0)
@@ -53,6 +54,10 @@ export function ThreadView({ items, onBack }: ThreadViewProps) {
         return next
       })
     }
+    if (input === "r") {
+      onResume()
+      return
+    }
   })
 
   if (items.length === 0) {
@@ -83,6 +88,7 @@ export function ThreadView({ items, onBack }: ThreadViewProps) {
       <Box paddingX={1} gap={2}>
         <Text dimColor>↑↓ navigate</Text>
         <Text dimColor>enter expand</Text>
+        <Text dimColor>r resume</Text>
         <Text dimColor>b/esc back</Text>
         <Text dimColor>q quit</Text>
       </Box>

@@ -41,4 +41,4 @@ export type ThreadItem =
 
 export type View =
   | { kind: "grid" }
-  | { kind: "feed"; sessionId: string }
+  | { kind: "feed"; sessionId: string; cwd: string | undefined }
