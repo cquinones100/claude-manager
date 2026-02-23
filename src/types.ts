@@ -1,5 +1,7 @@
 export type EntryType = "prompt" | "response" | "tool_use" | "tool_result"
 
+export type SessionStatus = "thinking" | "waiting" | "idle"
+
 export type FeedEntry = {
   timestamp: string
   project: string
@@ -30,6 +32,7 @@ export type SessionSummary = {
   preview: Array<{ label: string; text: string }>
   model: string | undefined
   gitBranch: string | undefined
+  status: SessionStatus
 }
 
 export type ResumeTarget = {

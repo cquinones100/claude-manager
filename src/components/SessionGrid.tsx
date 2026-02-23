@@ -4,6 +4,15 @@ import { ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
 
+function AnimatedEllipsis() {
+  const [dots, setDots] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setDots((d) => (d + 1) % 4), 500)
+    return () => clearInterval(id)
+  }, [])
+  return <>{".".repeat(dots) + " ".repeat(3 - dots)}</>
+}
+
 const COLS = 3
 const ROWS = 3
 const CHROME_LINES = 4 // padding + title + footer
@@ -17,19 +26,33 @@ type SessionCardProps = {
 }
 
 function SessionCard({ session, isSelected, isPulsing, width, height }: SessionCardProps) {
-  const borderColor = isPulsing ? "green" : isSelected ? "blue" : "gray"
+  const [waitingPulse, setWaitingPulse] = useState(false)
+  const isWaiting = session.status === "waiting"
+
+  useEffect(() => {
+    if (!isWaiting) {
+      setWaitingPulse(false)
+      return
+    }
+    const id = setInterval(() => setWaitingPulse((v) => !v), 1000)
+    return () => clearInterval(id)
+  }, [isWaiting])
+
+  const borderColor = isPulsing ? "green" : waitingPulse ? "yellow" : isSelected ? "blue" : "gray"
 
   return (
     <Box
       flexDirection="column"
-      borderStyle={isSelected || isPulsing ? "bold" : "round"}
+      borderStyle={isSelected || isPulsing || waitingPulse ? "bold" : "round"}
       borderColor={borderColor}
       paddingX={1}
       width={width}
       height={height}
     >
-      <Box flexShrink={0}>
+      <Box flexShrink={0} justifyContent="space-between">
         <Text bold={isSelected} wrap="truncate">{session.project}</Text>
+        {session.status === "thinking" && <Text color="blue">thinking<AnimatedEllipsis /></Text>}
+        {session.status === "waiting" && <Text color="yellow">waiting<AnimatedEllipsis /></Text>}
       </Box>
       <Box flexShrink={0}>
         <Text dimColor wrap="truncate">

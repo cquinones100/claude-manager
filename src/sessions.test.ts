@@ -328,6 +328,94 @@ describe("deriveSessions", () => {
     const sessions = deriveSessions(entries)
     expect(sessions[0].preview).toEqual([])
   })
+
+  it("derives 'thinking' status when newest entry is a user message", () => {
+    const entries = [
+      makeEntry({
+        session: "s1",
+        timestamp: new Date().toISOString(),
+        raw: { type: "user", timestamp: new Date().toISOString(), message: { role: "user", content: "do something" } },
+      }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].status).toBe("thinking")
+  })
+
+  it("derives 'waiting' status when newest assistant message contains tool_use blocks", () => {
+    const entries = [
+      makeEntry({
+        session: "s1",
+        type: "tool_use",
+        timestamp: new Date().toISOString(),
+        raw: {
+          type: "assistant",
+          timestamp: new Date().toISOString(),
+          message: {
+            role: "assistant",
+            content: [
+              { type: "text", text: "Let me check." },
+              { type: "tool_use", name: "Bash", input: { command: "ls" } },
+            ],
+          },
+        },
+      }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].status).toBe("waiting")
+  })
+
+  it("falls back to idle when a 'thinking' session is stale (>5min)", () => {
+    const staleTime = new Date(Date.now() - 10 * 60_000).toISOString()
+    const entries = [
+      makeEntry({
+        session: "s1",
+        timestamp: staleTime,
+        raw: { type: "user", timestamp: staleTime, message: { role: "user", content: "do something" } },
+      }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].status).toBe("idle")
+  })
+
+  it("falls back to idle when a 'waiting' session is stale (>5min)", () => {
+    const staleTime = new Date(Date.now() - 10 * 60_000).toISOString()
+    const entries = [
+      makeEntry({
+        session: "s1",
+        type: "tool_use",
+        timestamp: staleTime,
+        raw: {
+          type: "assistant",
+          timestamp: staleTime,
+          message: {
+            role: "assistant",
+            content: [
+              { type: "tool_use", name: "Bash", input: { command: "ls" } },
+            ],
+          },
+        },
+      }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].status).toBe("idle")
+  })
+
+  it("derives 'idle' status when newest assistant message has only text blocks", () => {
+    const entries = [
+      makeEntry({
+        session: "s1",
+        type: "response",
+        timestamp: new Date().toISOString(),
+        raw: {
+          type: "assistant",
+          timestamp: new Date().toISOString(),
+          message: { role: "assistant", content: [{ type: "text", text: "done" }] },
+        },
+      }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].status).toBe("idle")
+  })
 })
 
 describe("toolCallDescription", () => {

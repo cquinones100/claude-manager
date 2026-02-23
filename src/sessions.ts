@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
-import { FeedEntry, EntryType, SessionSummary, ThreadItem } from "./types.js"
+import { FeedEntry, EntryType, SessionSummary, SessionStatus, ThreadItem } from "./types.js"
 
 export const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
@@ -277,14 +277,33 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
       lastActivityAt.getDate() === todayDay
     ) {
       const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim()
-      const conversational = group.filter((e) => e.type === "prompt" || e.type === "response")
-      const lastTwo = conversational.slice(0, 2).reverse()
-      const preview = lastTwo.map((e) => ({
-        label: e.type === "prompt" ? "User" : "Claude",
-        text: flattenPreview(e.content),
-      }))
+      const lastPrompt = group.find((e) => e.type === "prompt")
+      const lastResponse = group.find((e) => e.type === "response")
+      const preview = [lastPrompt, lastResponse]
+        .filter((e): e is FeedEntry => e !== undefined)
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .map((e) => ({
+          label: e.type === "prompt" ? "User" : "Claude",
+          text: flattenPreview(e.content),
+        }))
 
       const { model, gitBranch } = extractSessionMeta(group)
+
+      const rawType = newest.raw.type as string
+      const messageContent = (newest.raw.message as Record<string, unknown> | undefined)?.content
+
+      const ageMs = now.getTime() - lastActivityAt.getTime()
+      const stale = ageMs > 5 * 60 * 1000
+
+      let status: SessionStatus = "idle"
+      if (!stale && rawType === "user") {
+        status = "thinking"
+      } else if (
+        Array.isArray(messageContent) &&
+        messageContent.some((block: Record<string, unknown>) => block.type === "tool_use")
+      ) {
+        status = stale ? "idle" : "waiting"
+      }
 
       const home = homedir()
       const project = newest.cwd?.startsWith(home)
@@ -300,6 +319,7 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         preview,
         model,
         gitBranch,
+        status,
       })
     }
   })
