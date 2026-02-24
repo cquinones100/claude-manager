@@ -10,6 +10,7 @@ import {
   loadSessionThread,
   deriveSessions,
   formatRelativeTime,
+  extractPendingQuestion,
 } from "./sessions.js"
 import { FeedEntry, ThreadItem } from "./types.js"
 
@@ -362,6 +363,50 @@ describe("deriveSessions", () => {
     ]
     const sessions = deriveSessions(entries)
     expect(sessions[0].status).toBe("waiting")
+    expect(sessions[0].pendingQuestion).toBeUndefined()
+  })
+
+  it("extracts pendingQuestion when waiting on AskUserQuestion", () => {
+    const entries = [
+      makeEntry({
+        session: "s1",
+        type: "tool_use",
+        timestamp: new Date().toISOString(),
+        raw: {
+          type: "assistant",
+          timestamp: new Date().toISOString(),
+          message: {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                name: "AskUserQuestion",
+                input: {
+                  questions: [
+                    {
+                      question: "Which database?",
+                      options: [
+                        { label: "PostgreSQL", description: "Relational DB" },
+                        { label: "MongoDB", description: "Document DB" },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      }),
+    ]
+    const sessions = deriveSessions(entries)
+    expect(sessions[0].status).toBe("waiting")
+    expect(sessions[0].pendingQuestion).toEqual({
+      question: "Which database?",
+      options: [
+        { label: "PostgreSQL", description: "Relational DB" },
+        { label: "MongoDB", description: "Document DB" },
+      ],
+    })
   })
 
   it("falls back to idle when a 'thinking' session is stale (>5min)", () => {
@@ -725,6 +770,58 @@ describe("loadSessionThread", () => {
       expect(["prompt", "text", "tool"]).toContain(item.kind)
       expect(item.timestamp).toBeTruthy()
     })
+  })
+})
+
+describe("extractPendingQuestion", () => {
+  it("returns full question and options from AskUserQuestion input", () => {
+    const content = [
+      {
+        type: "tool_use",
+        name: "AskUserQuestion",
+        input: {
+          questions: [
+            {
+              question: "Which framework?",
+              options: [
+                { label: "React", description: "Component-based UI" },
+                { label: "Vue", description: "Progressive framework" },
+              ],
+            },
+          ],
+        },
+      },
+    ]
+    expect(extractPendingQuestion(content)).toEqual({
+      question: "Which framework?",
+      options: [
+        { label: "React", description: "Component-based UI" },
+        { label: "Vue", description: "Progressive framework" },
+      ],
+    })
+  })
+
+  it("returns undefined for non-AskUserQuestion tool calls", () => {
+    const content = [
+      { type: "tool_use", name: "Bash", input: { command: "ls" } },
+    ]
+    expect(extractPendingQuestion(content)).toBeUndefined()
+  })
+
+  it("returns undefined for non-array content", () => {
+    expect(extractPendingQuestion("just a string")).toBeUndefined()
+    expect(extractPendingQuestion(undefined)).toBeUndefined()
+  })
+
+  it("returns undefined when AskUserQuestion has no options", () => {
+    const content = [
+      {
+        type: "tool_use",
+        name: "AskUserQuestion",
+        input: { questions: [{ question: "Pick one" }] },
+      },
+    ]
+    expect(extractPendingQuestion(content)).toBeUndefined()
   })
 })
 

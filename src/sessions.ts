@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
-import { FeedEntry, EntryType, SessionSummary, SessionStatus, ThreadItem } from "./types.js"
+import { FeedEntry, EntryType, SessionSummary, SessionStatus, ThreadItem, PendingQuestion } from "./types.js"
 
 export const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
@@ -43,6 +43,10 @@ export function toolCallDescription(
     else if (input.pattern) preview += `: ${input.pattern}`
     else if (input.query) preview += `: ${input.query}`
     else if (input.prompt) preview += `: ${String(input.prompt).slice(0, 80)}`
+    else if (Array.isArray(input.questions)) {
+      const q = (input.questions[0] as Record<string, unknown> | undefined)?.question
+      if (q) preview += `: ${String(q).slice(0, 120)}`
+    }
   }
   return preview
 }
@@ -213,6 +217,31 @@ export function formatModelName(raw: string): string {
   return raw
 }
 
+export function extractPendingQuestion(messageContent: unknown): PendingQuestion | undefined {
+  if (!Array.isArray(messageContent)) return undefined
+  const toolUse = [...messageContent]
+    .reverse()
+    .find((block: Record<string, unknown>) => block.type === "tool_use") as Record<string, unknown> | undefined
+  if (!toolUse) return undefined
+
+  const name = toolUse.name as string
+  if (name !== "AskUserQuestion") return undefined
+
+  const input = toolUse.input as Record<string, unknown> | undefined
+  if (!input || !Array.isArray(input.questions)) return undefined
+
+  const q = input.questions[0] as Record<string, unknown> | undefined
+  if (!q?.question || !Array.isArray(q.options)) return undefined
+
+  return {
+    question: String(q.question),
+    options: (q.options as Array<Record<string, unknown>>).map((opt) => ({
+      label: String(opt.label ?? ""),
+      description: String(opt.description ?? ""),
+    })),
+  }
+}
+
 function extractSessionMeta(group: FeedEntry[]): {
   model: string | undefined
   gitBranch: string | undefined
@@ -276,17 +305,6 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
       lastActivityAt.getMonth() === todayMonth &&
       lastActivityAt.getDate() === todayDay
     ) {
-      const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim()
-      const lastPrompt = group.find((e) => e.type === "prompt")
-      const lastResponse = group.find((e) => e.type === "response")
-      const preview = [lastPrompt, lastResponse]
-        .filter((e): e is FeedEntry => e !== undefined)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-        .map((e) => ({
-          label: e.type === "prompt" ? "User" : "Claude",
-          text: flattenPreview(e.content),
-        }))
-
       const { model, gitBranch } = extractSessionMeta(group)
 
       const rawType = newest.raw.type as string
@@ -305,6 +323,19 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         status = stale ? "idle" : "waiting"
       }
 
+      const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim()
+      const lastPrompt = group.find((e) => e.type === "prompt")
+      const lastClaudeLine = status === "waiting"
+        ? group.find((e) => e.type === "tool_use")
+        : group.find((e) => e.type === "response")
+      const preview = [lastPrompt, lastClaudeLine]
+        .filter((e): e is FeedEntry => e !== undefined)
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .map((e) => ({
+          label: e.type === "prompt" ? "User" : "Claude",
+          text: flattenPreview(e.content),
+        }))
+
       const home = homedir()
       const project = newest.cwd?.startsWith(home)
         ? "~" + newest.cwd.slice(home.length)
@@ -320,6 +351,7 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         model,
         gitBranch,
         status,
+        pendingQuestion: status === "waiting" ? extractPendingQuestion(messageContent) : undefined,
       })
     }
   })

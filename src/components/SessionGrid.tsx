@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
-import { ResumeTarget, SessionSummary } from "../types.js"
+import { PendingQuestion, ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
+import { QuestionModal } from "./QuestionModal.js"
 
 function AnimatedEllipsis() {
   const [dots, setDots] = useState(0)
@@ -81,6 +82,8 @@ type SessionGridProps = {
 
 const PULSE_DURATION = 1500
 
+type PendingModal = PendingQuestion & { sessionId: string; cwd: string | undefined }
+
 export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
@@ -92,6 +95,7 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
   const [cursor, setCursor] = useState(0)
   const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set())
   const prevCountsRef = useRef<Map<string, number>>(new Map())
+  const [pendingModal, setPendingModal] = useState<PendingModal | null>(null)
 
   useEffect(() => {
     const prev = prevCountsRef.current
@@ -142,7 +146,15 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
     if (input === "r") {
       const session = sessions[cursor]
       if (session) {
-        onResume({ sessionId: session.sessionId, cwd: session.cwd })
+        if (session.pendingQuestion) {
+          setPendingModal({
+            ...session.pendingQuestion,
+            sessionId: session.sessionId,
+            cwd: session.cwd,
+          })
+        } else {
+          onResume({ sessionId: session.sessionId, cwd: session.cwd, resumeMessage: undefined })
+        }
       }
     }
     if (input === "d") {
@@ -152,7 +164,21 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
         setCursor((c) => Math.min(c, sessions.length - 2))
       }
     }
-  })
+  }, { isActive: !pendingModal })
+
+  if (pendingModal) {
+    return (
+      <QuestionModal
+        question={pendingModal}
+        onSelect={(label) => {
+          const { sessionId, cwd } = pendingModal
+          setPendingModal(null)
+          onResume({ sessionId, cwd, resumeMessage: label })
+        }}
+        onCancel={() => setPendingModal(null)}
+      />
+    )
+  }
 
   if (sessions.length === 0) {
     return (
