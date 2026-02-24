@@ -136,6 +136,8 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
   const [pendingModal, setPendingModal] = useState<PendingModal | null>(null)
   const [copiedModal, setCopiedModal] = useState(false)
 
+  const clearScreen = () => process.stdout.write("\x1b[2J\x1b[H")
+
   function copySessionCommand(sessionId: string, cwd: string | undefined) {
     const command = buildResumeCommand(sessionId, cwd)
     copyToClipboard(command)
@@ -220,7 +222,7 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
   }, { isActive: !pendingModal && !copiedModal })
 
   if (copiedModal) {
-    return <CopiedModal onDismiss={() => setCopiedModal(false)} termWidth={termWidth} termHeight={termHeight} />
+    return <CopiedModal onDismiss={() => { clearScreen(); setCopiedModal(false) }} termWidth={termWidth} termHeight={termHeight} />
   }
 
   if (pendingModal) {
@@ -229,10 +231,11 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
         action={pendingModal}
         onConfirm={() => {
           const { sessionId, cwd } = pendingModal
+          clearScreen()
           setPendingModal(null)
           copySessionCommand(sessionId, cwd)
         }}
-        onCancel={() => setPendingModal(null)}
+        onCancel={() => { clearScreen(); setPendingModal(null) }}
         termWidth={termWidth}
         termHeight={termHeight}
       />
