@@ -36,7 +36,7 @@ export function RenameModal({ currentName, onConfirm, onCancel, termWidth, termH
         <Text color="blue">{"│" + " ".repeat(innerWidth) + "│"}</Text>
         <Text>
           <Text color="blue">{"│ "}</Text>
-          <Text dimColor>{hint}</Text>
+          <Text color="cyan">enter</Text><Text dimColor>{`: confirm · `}</Text><Text color="cyan">esc</Text><Text dimColor>: cancel</Text>
           <Text color="blue">{" ".repeat(hintPad) + " │"}</Text>
         </Text>
         <Text color="blue">{"╰" + "─".repeat(innerWidth) + "╯"}</Text>

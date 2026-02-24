@@ -30,7 +30,7 @@ export function QuestionModal({ action, confirmLabel, onConfirm, onCancel, termW
       contentLines.push({ text: opt.description, dim: true })
     })
   } else {
-    contentLines.push({ text: action.description, color: "yellow" })
+    contentLines.push({ text: action.description, color: "magenta" })
   }
 
   const maxContentWidth = Math.max(
@@ -57,7 +57,7 @@ export function QuestionModal({ action, confirmLabel, onConfirm, onCancel, termW
         <Text color="blue">{"│" + " ".repeat(innerWidth) + "│"}</Text>
         <Text>
           <Text color="blue">{"│ "}</Text>
-          <Text dimColor>{hint}</Text>
+          <Text color="cyan">enter</Text><Text dimColor>{`: ${confirmLabel} · `}</Text><Text color="cyan">esc</Text><Text dimColor>: cancel</Text>
           <Text color="blue">{" ".repeat(hintPad) + " │"}</Text>
         </Text>
         <Text color="blue">{"╰" + "─".repeat(innerWidth) + "╯"}</Text>

@@ -18,6 +18,10 @@ function AnimatedEllipsis() {
   return <>{".".repeat(dots) + " ".repeat(3 - dots)}</>
 }
 
+function Shortcut({ keyName, description }: { keyName: string; description: string }) {
+  return <Text><Text color="cyan">{keyName}</Text><Text dimColor> {description}</Text></Text>
+}
+
 const COLS = 3
 const ROWS = 3
 const CHROME_LINES = 4 // padding + title + footer
@@ -45,7 +49,7 @@ function SessionCard({ session, customName, isSelected, isPulsing, hasWindow, wi
     }
   }, [isWaiting])
 
-  const borderColor = isSelected ? "blue" : isPulsing ? "green" : waitingPulse ? "yellow" : "gray"
+  const borderColor = isSelected ? "cyan" : isPulsing ? "green" : waitingPulse ? "yellow" : "gray"
   const borderStyle = (isSelected || isPulsing || waitingPulse) ? "bold" as const : "round" as const
 
   return (
@@ -58,12 +62,12 @@ function SessionCard({ session, customName, isSelected, isPulsing, hasWindow, wi
       height={height}
     >
       <Box flexShrink={0} justifyContent="space-between">
-        <Text bold={isSelected} wrap="truncate">{hasWindow && <Text color="green">▶ </Text>}{customName ?? session.project}</Text>
-        {session.status === "thinking" && <Text color="blue">thinking<AnimatedEllipsis /></Text>}
-        {session.status === "waiting" && <Text color="yellow">waiting<AnimatedEllipsis /></Text>}
+        <Text bold={isSelected} color={isSelected ? "cyan" : undefined} wrap="truncate">{hasWindow && <Text color="green">▶ </Text>}{customName ?? session.project}</Text>
+        {session.status === "thinking" && <Text color="blue" bold>thinking<AnimatedEllipsis /></Text>}
+        {session.status === "waiting" && <Text color="yellow" bold>waiting<AnimatedEllipsis /></Text>}
       </Box>
       <Box flexShrink={0}>
-        <Text dimColor wrap="truncate">
+        <Text color="cyan" wrap="truncate">
           {[
             formatRelativeTime(session.lastActivityAt),
             session.model && formatModelName(session.model),
@@ -73,7 +77,7 @@ function SessionCard({ session, customName, isSelected, isPulsing, hasWindow, wi
       </Box>
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
         {session.preview.map((line, i) => (
-          <Text key={i} color={line.label === "User" ? "yellow" : "blue"} dimColor>{line.label}: {line.text}</Text>
+          <Text key={i} color={line.label === "User" ? "yellow" : "blue"} dimColor={!isSelected}>{line.label}: {line.text}</Text>
         ))}
       </Box>
     </Box>
@@ -97,7 +101,7 @@ function CopiedModal({ onDismiss, termWidth, termHeight }: { onDismiss: () => vo
         <Text color="green">{"│" + " ".repeat(innerWidth) + "│"}</Text>
         <Text>
           <Text color="green">{"│ "}</Text>
-          <Text dimColor>{hint}</Text>
+          <Text color="cyan">enter</Text><Text dimColor>: ok</Text>
           <Text color="green">{" ".repeat(hintPad) + " │"}</Text>
         </Text>
         <Text color="green">{"╰" + "─".repeat(innerWidth) + "╯"}</Text>
@@ -132,7 +136,7 @@ function ConfirmResumeModal({ onConfirm, onCancel, termWidth, termHeight }: { on
         <Text color="blue">{"│" + " ".repeat(innerWidth) + "│"}</Text>
         <Text>
           <Text color="blue">{"│ "}</Text>
-          <Text dimColor>{hint}</Text>
+          <Text color="cyan">enter</Text><Text dimColor>{`: confirm · `}</Text><Text color="cyan">esc</Text><Text dimColor>: cancel</Text>
           <Text color="blue">{" ".repeat(hintPad) + " │"}</Text>
         </Text>
         <Text color="blue">{"╰" + "─".repeat(innerWidth) + "╯"}</Text>
@@ -483,8 +487,8 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
           <Text dimColor>{filter === "active" ? "No active sessions." : "No sessions today."}</Text>
         </Box>
         <Box gap={2}>
-          <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
-          <Text dimColor>q: quit</Text>
+          <Shortcut keyName="f" description={filter === "active" ? "show all" : "active only"} />
+          <Shortcut keyName="q" description="quit" />
         </Box>
       </Box>
     )
@@ -532,14 +536,14 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
         />
       </Box>
       <Box gap={2}>
-        <Text dimColor>←↑↓→ navigate</Text>
-        <Text dimColor>r: resume</Text>
-        <Text dimColor>x: close window</Text>
-        <Text dimColor>enter: copy</Text>
-        <Text dimColor>n: rename</Text>
-        <Text dimColor>d: hide</Text>
-        <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
-        <Text dimColor>q: quit</Text>
+        <Shortcut keyName="←↑↓→" description="navigate" />
+        <Shortcut keyName="r" description="resume" />
+        <Shortcut keyName="x" description="close window" />
+        <Shortcut keyName="enter" description="copy" />
+        <Shortcut keyName="n" description="rename" />
+        <Shortcut keyName="d" description="hide" />
+        <Shortcut keyName="f" description={filter === "active" ? "show all" : "active only"} />
+        <Shortcut keyName="q" description="quit" />
       </Box>
     </Box>
   )

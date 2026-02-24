@@ -81,7 +81,7 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
   if (loading) {
     return (
       <Box padding={1}>
-        <Text color="blue">
+        <Text color="cyan">
           <Spinner type="dots" />
         </Text>
         <Text> Loading sessions…</Text>

@@ -22,7 +22,7 @@ export function Scrollbar({ totalItems, visibleCount, scrollOffset, height }: Sc
   return (
     <Box flexDirection="column" marginLeft={1}>
       {lines.map((char, i) => (
-        <Text key={i} color={char === "┃" ? "blue" : "gray"}>{char}</Text>
+        <Text key={i} color={char === "┃" ? "cyan" : "gray"}>{char}</Text>
       ))}
     </Box>
   )
