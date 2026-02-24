@@ -360,8 +360,8 @@ describe("deriveSessions", () => {
       }),
     ]
     const sessions = deriveSessions(entries)
-    expect(sessions[0].status).toBe("waiting")
-    expect(sessions[0].pendingAction).toEqual({ kind: "tool", description: "Bash: ls" })
+    expect(sessions[0].status).toBe("thinking")
+    expect(sessions[0].pendingAction).toBeUndefined()
   })
 
   it("extracts pendingAction question when waiting on AskUserQuestion", () => {
