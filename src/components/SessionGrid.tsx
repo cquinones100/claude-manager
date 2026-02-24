@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
-import { PendingAction, ResumeTarget, SessionSummary } from "../types.js"
+import { execSync } from "node:child_process"
+import { PendingAction, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
 import { QuestionModal } from "./QuestionModal.js"
@@ -75,17 +76,52 @@ function SessionCard({ session, isSelected, isPulsing, width, height }: SessionC
   )
 }
 
+function CopiedModal({ onDismiss, termWidth, termHeight }: { onDismiss: () => void; termWidth: number; termHeight: number }) {
+  useInput((_input, key) => {
+    if (key.return || key.escape) onDismiss()
+  })
+
+  const title = "claude resume copied to clipboard"
+  const hint = "enter: ok"
+  const innerWidth = title.length + 4
+  const hintPad = innerWidth - hint.length - 2
+
+  return (
+    <Box width={termWidth} height={termHeight} flexDirection="column" justifyContent="center" alignItems="center">
+      <Box flexDirection="column">
+        <Text color="green">{"╭─ " + title + " " + "─".repeat(innerWidth - title.length - 3) + "╮"}</Text>
+        <Text color="green">{"│" + " ".repeat(innerWidth) + "│"}</Text>
+        <Text>
+          <Text color="green">{"│ "}</Text>
+          <Text dimColor>{hint}</Text>
+          <Text color="green">{" ".repeat(hintPad) + " │"}</Text>
+        </Text>
+        <Text color="green">{"╰" + "─".repeat(innerWidth) + "╯"}</Text>
+      </Box>
+    </Box>
+  )
+}
+
 type SessionGridProps = {
   sessions: SessionSummary[]
-  onResume: (target: ResumeTarget) => void
   onHide: (sessionId: string) => void
+}
+
+function buildResumeCommand(sessionId: string, cwd: string | undefined): string {
+  const resume = `claude --resume ${sessionId}`
+  if (!cwd) return resume
+  return `cd "${cwd}" && ${resume}`
+}
+
+function copyToClipboard(text: string) {
+  execSync("pbcopy", { input: text })
 }
 
 const PULSE_DURATION = 1500
 
 type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined }
 
-export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
+export function SessionGrid({ sessions, onHide }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
   const termHeight = stdout?.rows ?? 24
@@ -98,6 +134,13 @@ export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
   const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set())
   const prevCountsRef = useRef<Map<string, number>>(new Map())
   const [pendingModal, setPendingModal] = useState<PendingModal | null>(null)
+  const [copiedModal, setCopiedModal] = useState(false)
+
+  function copySessionCommand(sessionId: string, cwd: string | undefined) {
+    const command = buildResumeCommand(sessionId, cwd)
+    copyToClipboard(command)
+    setCopiedModal(true)
+  }
 
   const filtered = useMemo(
     () => filter === "active" ? sessions.filter((s) => s.status !== "idle") : sessions,
@@ -163,7 +206,7 @@ export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
             cwd: session.cwd,
           })
         } else {
-          onResume({ sessionId: session.sessionId, cwd: session.cwd })
+          copySessionCommand(session.sessionId, session.cwd)
         }
       }
     }
@@ -174,7 +217,11 @@ export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
         setCursor((c) => Math.min(c, filtered.length - 2))
       }
     }
-  }, { isActive: !pendingModal })
+  }, { isActive: !pendingModal && !copiedModal })
+
+  if (copiedModal) {
+    return <CopiedModal onDismiss={() => setCopiedModal(false)} termWidth={termWidth} termHeight={termHeight} />
+  }
 
   if (pendingModal) {
     return (
@@ -183,9 +230,11 @@ export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
         onConfirm={() => {
           const { sessionId, cwd } = pendingModal
           setPendingModal(null)
-          onResume({ sessionId, cwd })
+          copySessionCommand(sessionId, cwd)
         }}
         onCancel={() => setPendingModal(null)}
+        termWidth={termWidth}
+        termHeight={termHeight}
       />
     )
   }
@@ -248,7 +297,7 @@ export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
       </Box>
       <Box gap={2}>
         <Text dimColor>←↑↓→ navigate</Text>
-        <Text dimColor>enter: resume</Text>
+        <Text dimColor>enter: copy resume command</Text>
         <Text dimColor>d: hide</Text>
         <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
         <Text dimColor>q: quit</Text>

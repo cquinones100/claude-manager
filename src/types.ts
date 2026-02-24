@@ -30,8 +30,4 @@ export type SessionSummary = {
   pendingAction: PendingAction | undefined
 }
 
-export type ResumeTarget = {
-  sessionId: string
-  cwd: string | undefined
-}
 

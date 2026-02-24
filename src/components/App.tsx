@@ -4,14 +4,10 @@ import Spinner from "ink-spinner"
 import { watch } from "node:fs"
 import { loadAllSessions, deriveSessions, CLAUDE_DIR } from "../sessions.js"
 import { loadHidden, addHidden } from "../hidden.js"
-import { FeedEntry, ResumeTarget } from "../types.js"
+import { FeedEntry } from "../types.js"
 import { SessionGrid } from "./SessionGrid.js"
 
-type AppProps = {
-  onResume: (target: ResumeTarget) => void
-}
-
-export function App({ onResume }: AppProps) {
+export function App() {
   const { exit } = useApp()
 
   const [loading, setLoading] = useState(true)
@@ -70,10 +66,6 @@ export function App({ onResume }: AppProps) {
   return (
     <SessionGrid
       sessions={sessions}
-      onResume={(target) => {
-        onResume(target)
-        exit()
-      }}
       onHide={(sessionId) => {
         addHidden(sessionId)
         setHiddenIds((prev) => new Set([...prev, sessionId]))
