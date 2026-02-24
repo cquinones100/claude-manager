@@ -245,6 +245,7 @@ export function SessionGrid({ sessions, names, onHide, onRename }: SessionGridPr
 
   useInput((input, key) => {
     if (input === "f") {
+      clearScreen()
       setFilter((f) => f === "active" ? "all" : "active")
       setCursor(0)
       return
