@@ -17,6 +17,22 @@ function execQuiet(cmd: string): string {
   }
 }
 
+export function getRunningSessionIds(knownIds: string[]): Set<string> {
+  if (knownIds.length === 0) return new Set()
+
+  const psOutput = execQuiet("ps -eo args=")
+  const claudeLines = psOutput.split("\n").filter((line) => line.includes("claude"))
+  const running = new Set<string>()
+
+  knownIds.forEach((id) => {
+    if (claudeLines.some((line) => line.includes(id))) {
+      running.add(id)
+    }
+  })
+
+  return running
+}
+
 export function killExistingSession(sessionId: string): void {
   const pids = new Set<number>()
 
