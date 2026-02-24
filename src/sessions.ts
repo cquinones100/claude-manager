@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
-import { FeedEntry, EntryType, SessionSummary, SessionStatus, PendingAction } from "./types.js"
+import { FeedEntry, SessionSummary, SessionStatus, PendingAction } from "./types.js"
 
 export const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i

@@ -34,12 +34,12 @@ function SessionCard({ session, isSelected, isPulsing, width, height }: SessionC
   const isWaiting = session.status === "waiting"
 
   useEffect(() => {
-    if (!isWaiting) {
-      setWaitingPulse(false)
-      return
-    }
+    if (!isWaiting) return
     const id = setInterval(() => setWaitingPulse((v) => !v), 1000)
-    return () => clearInterval(id)
+    return () => {
+      clearInterval(id)
+      setWaitingPulse(false)
+    }
   }, [isWaiting])
 
   const borderColor = isPulsing ? "green" : waitingPulse ? "yellow" : isSelected ? "blue" : "gray"
@@ -196,25 +196,27 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
 
   // Mouse click support
   const handleClickRef = useRef<(x: number, y: number) => void>(() => {})
-  handleClickRef.current = (x: number, y: number) => {
-    if (pendingModal || copiedModal) return
-    if (filtered.length === 0) return
+  useEffect(() => {
+    handleClickRef.current = (x: number, y: number) => {
+      if (pendingModal || copiedModal) return
+      if (filtered.length === 0) return
 
-    // Grid starts at y=4 (padding=1, title=1, margin=1) and x=2 (padding=1), 1-indexed
-    const gridY = y - 4
-    const gridX = x - 2
-    if (gridY < 0 || gridX < 0) return
+      // Grid starts at y=4 (padding=1, title=1, margin=1) and x=2 (padding=1), 1-indexed
+      const gridY = y - 4
+      const gridX = x - 2
+      if (gridY < 0 || gridX < 0) return
 
-    const row = Math.floor(gridY / cellHeight)
-    const col = Math.floor(gridX / cellWidth)
-    if (row >= ROWS || col >= COLS) return
+      const row = Math.floor(gridY / cellHeight)
+      const col = Math.floor(gridX / cellWidth)
+      if (row >= ROWS || col >= COLS) return
 
-    const globalIdx = (scrollRow + row) * COLS + col
-    if (globalIdx >= filtered.length) return
+      const globalIdx = (scrollRow + row) * COLS + col
+      if (globalIdx >= filtered.length) return
 
-    setCursor(globalIdx)
-    selectSession(filtered[globalIdx])
-  }
+      setCursor(globalIdx)
+      selectSession(filtered[globalIdx])
+    }
+  })
 
   useEffect(() => {
     process.stdout.write("\x1b[?1000h\x1b[?1006h")

@@ -7,8 +7,10 @@ Terminal UI for browsing today's Claude Code sessions. Built with Ink (React for
 - **Runtime**: Node.js with tsx
 - **UI**: Ink 5 + React 18
 - **Package manager**: pnpm
+- **Linting**: ESLint 9 with typescript-eslint and react-hooks
 - **Testing**: Vitest
 - **TypeScript**: strict, ESM-only (`"type": "module"`)
+- **CI**: GitHub Actions — runs lint, typecheck, and tests on push/PR to main
 
 ## Key conventions
 
@@ -21,5 +23,6 @@ Terminal UI for browsing today's Claude Code sessions. Built with Ink (React for
 
 - `pnpm start` — run the app
 - `pnpm dev` — run with hot reload (`node --watch`)
+- `pnpm lint` — lint with ESLint
 - `pnpm test` — run tests with Vitest
 - `pnpm typecheck` — type-check without emitting

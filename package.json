@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "Interactive feed of Claude Code sessions",
   "type": "module",
+  "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev": "node --watch --watch-path=src --import tsx src/cli.tsx",
     "start": "pnpm tsx src/cli.tsx",
+    "lint": "eslint src/",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -15,10 +17,14 @@
     "react": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.3",
     "@types/node": "^25.3.0",
     "@types/react": "^18.3.12",
+    "eslint": "^9.39.3",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.56.1",
     "vitest": "^4.0.18"
   }
 }
