@@ -17,6 +17,12 @@ export type PendingAction =
   | { kind: "question"; question: string; options: Array<{ label: string; description: string }> }
   | { kind: "tool"; description: string }
 
+export type ResumeTarget = {
+  sessionId: string
+  cwd: string | undefined
+  prompt: string | undefined
+}
+
 export type SessionSummary = {
   sessionId: string
   project: string

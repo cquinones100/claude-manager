@@ -4,20 +4,21 @@ import { PendingAction } from "../types.js"
 
 type QuestionModalProps = {
   action: PendingAction
+  confirmLabel: string
   onConfirm: () => void
   onCancel: () => void
   termWidth: number
   termHeight: number
 }
 
-export function QuestionModal({ action, onConfirm, onCancel, termWidth, termHeight }: QuestionModalProps) {
+export function QuestionModal({ action, confirmLabel, onConfirm, onCancel, termWidth, termHeight }: QuestionModalProps) {
   useInput((_input, key) => {
     if (key.return) onConfirm()
     if (key.escape) onCancel()
   })
 
   const title = action.kind === "question" ? "Claude is asking" : "Claude is waiting for permission"
-  const hint = "enter: copy command · esc: cancel"
+  const hint = `enter: ${confirmLabel} · esc: cancel`
 
   const contentLines: Array<{ text: string; color?: string; bold?: boolean; dim?: boolean }> = []
 

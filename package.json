@@ -11,10 +11,14 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["node-pty"]
+  },
   "dependencies": {
     "ink": "^5.1.0",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
+    "node-pty": "^1.1.0",
     "react": "^18.3.1"
   },
   "devDependencies": {

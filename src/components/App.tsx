@@ -5,11 +5,18 @@ import { watch } from "node:fs"
 import { loadAllSessions, deriveSessions, CLAUDE_DIR } from "../sessions.js"
 import { loadHidden, addHidden } from "../hidden.js"
 import { loadNames, saveName, removeName } from "../names.js"
-import { FeedEntry } from "../types.js"
+import { FeedEntry, ResumeTarget } from "../types.js"
 import { SessionGrid } from "./SessionGrid.js"
 
-export function App() {
+type AppProps = {
+  onResume: (target: ResumeTarget) => void
+  activeWindows: Set<string>
+  onKillWindow: (id: string) => void
+}
+
+export function App({ onResume, activeWindows: initialWindows, onKillWindow }: AppProps) {
   const { exit } = useApp()
+  const [activeWindows, setActiveWindows] = useState<Set<string>>(initialWindows)
 
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<FeedEntry[]>([])
@@ -48,6 +55,20 @@ export function App() {
     [entries, hiddenIds],
   )
 
+  const handleResume = (target: ResumeTarget) => {
+    onResume(target)
+    exit()
+  }
+
+  const handleKillWindow = (id: string) => {
+    onKillWindow(id)
+    setActiveWindows((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
   useInput((input) => {
     if (input === "q") {
       exit()
@@ -74,7 +95,10 @@ export function App() {
         addHidden(sessionId)
         setHiddenIds((prev) => new Set([...prev, sessionId]))
       }}
-      onRename={(sessionId, name) => {
+      onResume={handleResume}
+      activeWindows={activeWindows}
+      onKillWindow={handleKillWindow}
+      onRename={(sessionId: string, name: string) => {
         if (name) {
           saveName(sessionId, name)
           setNames((prev) => new Map([...prev, [sessionId, name]]))
