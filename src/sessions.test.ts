@@ -340,7 +340,7 @@ describe("deriveSessions", () => {
     expect(sessions[0].status).toBe("thinking")
   })
 
-  it("derives 'thinking' status when newest assistant message contains non-AskUserQuestion tool_use blocks", () => {
+  it("derives 'waiting' status when newest assistant message contains tool_use blocks", () => {
     const entries = [
       makeEntry({
         session: "s1",
@@ -360,8 +360,8 @@ describe("deriveSessions", () => {
       }),
     ]
     const sessions = deriveSessions(entries)
-    expect(sessions[0].status).toBe("thinking")
-    expect(sessions[0].pendingAction).toBeUndefined()
+    expect(sessions[0].status).toBe("waiting")
+    expect(sessions[0].pendingAction).toEqual({ kind: "tool", description: "Bash: ls" })
   })
 
   it("extracts pendingAction question when waiting on AskUserQuestion", () => {

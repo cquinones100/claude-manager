@@ -323,11 +323,7 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         Array.isArray(messageContent) &&
         messageContent.some((block: Record<string, unknown>) => block.type === "tool_use")
       ) {
-        const isAskingUser = messageContent.some(
-          (block: Record<string, unknown>) =>
-            block.type === "tool_use" && block.name === "AskUserQuestion"
-        )
-        status = isAskingUser ? "waiting" : "thinking"
+        status = "waiting"
       }
 
       const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim()
