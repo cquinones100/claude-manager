@@ -107,8 +107,13 @@ type SessionGridProps = {
   onHide: (sessionId: string) => void
 }
 
-function buildResumeCommand(sessionId: string, cwd: string | undefined): string {
-  const resume = `claude --resume ${sessionId}`
+function escapeShell(str: string): string {
+  return str.replace(/'/g, "'\\''")
+}
+
+function buildResumeCommand(sessionId: string, cwd: string | undefined, prompt?: string): string {
+  let resume = `claude --resume ${sessionId}`
+  if (prompt) resume += ` -p '${escapeShell(prompt)}'`
   if (!cwd) return resume
   return `cd "${cwd}" && ${resume}`
 }
@@ -138,8 +143,8 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
 
   const clearScreen = () => process.stdout.write("\x1b[2J\x1b[H")
 
-  function copySessionCommand(sessionId: string, cwd: string | undefined) {
-    const command = buildResumeCommand(sessionId, cwd)
+  function copySessionCommand(sessionId: string, cwd: string | undefined, prompt?: string) {
+    const command = buildResumeCommand(sessionId, cwd, prompt)
     copyToClipboard(command)
     setCopiedModal(true)
   }
@@ -233,7 +238,10 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
           const { sessionId, cwd } = pendingModal
           clearScreen()
           setPendingModal(null)
-          copySessionCommand(sessionId, cwd)
+          const prompt = pendingModal.kind === "tool"
+            ? `${pendingModal.description}\n\nyes, go ahead`
+            : undefined
+          copySessionCommand(sessionId, cwd, prompt)
         }}
         onCancel={() => { clearScreen(); setPendingModal(null) }}
         termWidth={termWidth}
