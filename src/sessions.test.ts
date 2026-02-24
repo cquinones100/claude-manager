@@ -340,7 +340,7 @@ describe("deriveSessions", () => {
     expect(sessions[0].status).toBe("thinking")
   })
 
-  it("derives 'waiting' status when newest assistant message contains tool_use blocks", () => {
+  it("derives 'thinking' status when newest assistant message contains non-AskUserQuestion tool_use blocks", () => {
     const entries = [
       makeEntry({
         session: "s1",

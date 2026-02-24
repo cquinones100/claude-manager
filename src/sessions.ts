@@ -319,10 +319,15 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
       if (!stale && rawType === "user") {
         status = "thinking"
       } else if (
+        !stale &&
         Array.isArray(messageContent) &&
         messageContent.some((block: Record<string, unknown>) => block.type === "tool_use")
       ) {
-        status = stale ? "idle" : "waiting"
+        const isAskingUser = messageContent.some(
+          (block: Record<string, unknown>) =>
+            block.type === "tool_use" && block.name === "AskUserQuestion"
+        )
+        status = isAskingUser ? "waiting" : "thinking"
       }
 
       const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim()
