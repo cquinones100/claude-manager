@@ -170,10 +170,30 @@ const PULSE_DURATION = 1500
 type ModalAction = "copy" | "resume"
 type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined; action: ModalAction }
 
-export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, onKillWindow, onRename }: SessionGridProps) {
+function useTerminalSize() {
   const { stdout } = useStdout()
-  const termWidth = stdout?.columns ?? 80
-  const termHeight = stdout?.rows ?? 24
+  const [size, setSize] = useState({
+    width: stdout?.columns ?? 80,
+    height: stdout?.rows ?? 24,
+  })
+
+  useEffect(() => {
+    const onResize = () => {
+      process.stdout.write("\x1b[2J\x1b[H")
+      setSize({
+        width: stdout?.columns ?? 80,
+        height: stdout?.rows ?? 24,
+      })
+    }
+    stdout?.on("resize", onResize)
+    return () => { stdout?.off("resize", onResize) }
+  }, [stdout])
+
+  return size
+}
+
+export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, onKillWindow, onRename }: SessionGridProps) {
+  const { width: termWidth, height: termHeight } = useTerminalSize()
 
   const cellWidth = Math.floor(termWidth / COLS)
   const cellHeight = Math.floor((termHeight - CHROME_LINES) / ROWS)
