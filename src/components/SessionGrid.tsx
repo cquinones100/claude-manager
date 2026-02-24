@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useMemo, useRef, useEffect } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
 import { PendingQuestion, ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
 import { QuestionModal } from "./QuestionModal.js"
+
+type SessionFilter = "active" | "all"
 
 function AnimatedEllipsis() {
   const [dots, setDots] = useState(0)
@@ -93,9 +95,15 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
   const cellHeight = Math.floor((termHeight - CHROME_LINES) / ROWS)
 
   const [cursor, setCursor] = useState(0)
+  const [filter, setFilter] = useState<SessionFilter>("active")
   const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set())
   const prevCountsRef = useRef<Map<string, number>>(new Map())
   const [pendingModal, setPendingModal] = useState<PendingModal | null>(null)
+
+  const filtered = useMemo(
+    () => filter === "active" ? sessions.filter((s) => s.status !== "idle") : sessions,
+    [sessions, filter],
+  )
 
   useEffect(() => {
     const prev = prevCountsRef.current
@@ -121,30 +129,36 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
     }
   }, [sessions])
 
-  const totalRows = Math.ceil(sessions.length / COLS)
+  const totalRows = Math.ceil(filtered.length / COLS)
   const cursorRow = Math.floor(cursor / COLS)
   const scrollRow = Math.max(0, Math.min(cursorRow - Math.floor(ROWS / 2), totalRows - ROWS))
 
   useInput((input, key) => {
-    if (sessions.length === 0) return
+    if (input === "f") {
+      setFilter((f) => f === "active" ? "all" : "active")
+      setCursor(0)
+      return
+    }
+
+    if (filtered.length === 0) return
 
     if (key.leftArrow) {
       setCursor((c) => Math.max(0, c - 1))
     }
     if (key.rightArrow) {
-      setCursor((c) => Math.min(sessions.length - 1, c + 1))
+      setCursor((c) => Math.min(filtered.length - 1, c + 1))
     }
     if (key.upArrow) {
       setCursor((c) => Math.max(0, c - COLS))
     }
     if (key.downArrow) {
-      setCursor((c) => Math.min(sessions.length - 1, c + COLS))
+      setCursor((c) => Math.min(filtered.length - 1, c + COLS))
     }
     if (key.return) {
-      onSelect(sessions[cursor].sessionId)
+      onSelect(filtered[cursor].sessionId)
     }
     if (input === "r") {
-      const session = sessions[cursor]
+      const session = filtered[cursor]
       if (session) {
         if (session.pendingQuestion) {
           setPendingModal({
@@ -158,10 +172,10 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
       }
     }
     if (input === "d") {
-      const session = sessions[cursor]
+      const session = filtered[cursor]
       if (session) {
         onHide(session.sessionId)
-        setCursor((c) => Math.min(c, sessions.length - 2))
+        setCursor((c) => Math.min(c, filtered.length - 2))
       }
     }
   }, { isActive: !pendingModal })
@@ -180,14 +194,17 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
     )
   }
 
-  if (sessions.length === 0) {
+  const filterLabel = filter === "active" ? "Active Sessions" : "Today's Sessions"
+
+  if (filtered.length === 0) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold>Today's Sessions (0)</Text>
+        <Text bold>{filterLabel} (0)</Text>
         <Box marginTop={1}>
-          <Text dimColor>No sessions today.</Text>
+          <Text dimColor>{filter === "active" ? "No active sessions." : "No sessions today."}</Text>
         </Box>
-        <Box marginTop={1}>
+        <Box marginTop={1} gap={2}>
+          <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
           <Text dimColor>q: quit</Text>
         </Box>
       </Box>
@@ -195,8 +212,8 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
   }
 
   const visibleStart = scrollRow * COLS
-  const visibleEnd = Math.min(sessions.length, (scrollRow + ROWS) * COLS)
-  const visibleSessions = sessions.slice(visibleStart, visibleEnd)
+  const visibleEnd = Math.min(filtered.length, (scrollRow + ROWS) * COLS)
+  const visibleSessions = filtered.slice(visibleStart, visibleEnd)
 
   const rows: SessionSummary[][] = []
   for (let i = 0; i < visibleSessions.length; i += COLS) {
@@ -205,7 +222,7 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Text bold>Today's Sessions ({sessions.length})</Text>
+      <Text bold>{filterLabel} ({filtered.length})</Text>
       <Box marginTop={1}>
         <Box flexDirection="column" flexGrow={1}>
           {rows.map((row, rowIdx) => (
@@ -238,6 +255,7 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
         <Text dimColor>enter: open</Text>
         <Text dimColor>r: resume</Text>
         <Text dimColor>d: hide</Text>
+        <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
         <Text dimColor>q: quit</Text>
       </Box>
     </Box>
