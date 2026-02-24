@@ -149,6 +149,18 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
     setCopiedModal(true)
   }
 
+  function selectSession(session: SessionSummary) {
+    if (session.pendingAction) {
+      setPendingModal({
+        ...session.pendingAction,
+        sessionId: session.sessionId,
+        cwd: session.cwd,
+      })
+    } else {
+      copySessionCommand(session.sessionId, session.cwd)
+    }
+  }
+
   const filtered = useMemo(
     () => filter === "active" ? sessions.filter((s) => s.status !== "idle") : sessions,
     [sessions, filter],
@@ -182,6 +194,48 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
   const cursorRow = Math.floor(cursor / COLS)
   const scrollRow = Math.max(0, Math.min(cursorRow - Math.floor(ROWS / 2), totalRows - ROWS))
 
+  // Mouse click support
+  const handleClickRef = useRef<(x: number, y: number) => void>(() => {})
+  handleClickRef.current = (x: number, y: number) => {
+    if (pendingModal || copiedModal) return
+    if (filtered.length === 0) return
+
+    // Grid starts at y=4 (padding=1, title=1, margin=1) and x=2 (padding=1), 1-indexed
+    const gridY = y - 4
+    const gridX = x - 2
+    if (gridY < 0 || gridX < 0) return
+
+    const row = Math.floor(gridY / cellHeight)
+    const col = Math.floor(gridX / cellWidth)
+    if (row >= ROWS || col >= COLS) return
+
+    const globalIdx = (scrollRow + row) * COLS + col
+    if (globalIdx >= filtered.length) return
+
+    setCursor(globalIdx)
+    selectSession(filtered[globalIdx])
+  }
+
+  useEffect(() => {
+    process.stdout.write("\x1b[?1000h\x1b[?1006h")
+
+    const handler = (data: Buffer) => {
+      const match = data.toString().match(/\x1b\[<(\d+);(\d+);(\d+)([Mm])/)
+      if (!match) return
+      const button = parseInt(match[1])
+      const isPress = match[4] === "M"
+      if (button === 0 && isPress) {
+        handleClickRef.current(parseInt(match[2]), parseInt(match[3]))
+      }
+    }
+
+    process.stdin.on("data", handler)
+    return () => {
+      process.stdin.off("data", handler)
+      process.stdout.write("\x1b[?1000l\x1b[?1006l")
+    }
+  }, [])
+
   useInput((input, key) => {
     if (input === "f") {
       setFilter((f) => f === "active" ? "all" : "active")
@@ -205,17 +259,7 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
     }
     if (key.return) {
       const session = filtered[cursor]
-      if (session) {
-        if (session.pendingAction) {
-          setPendingModal({
-            ...session.pendingAction,
-            sessionId: session.sessionId,
-            cwd: session.cwd,
-          })
-        } else {
-          copySessionCommand(session.sessionId, session.cwd)
-        }
-      }
+      if (session) selectSession(session)
     }
     if (input === "d") {
       const session = filtered[cursor]
