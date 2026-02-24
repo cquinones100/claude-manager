@@ -477,12 +477,12 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
 
   if (filtered.length === 0) {
     return (
-      <Box flexDirection="column" padding={1}>
+      <Box flexDirection="column" padding={1} height={termHeight}>
         <Text bold>{filterLabel} (0)</Text>
-        <Box marginTop={1}>
+        <Box marginTop={1} flexGrow={1}>
           <Text dimColor>{filter === "active" ? "No active sessions." : "No sessions today."}</Text>
         </Box>
-        <Box marginTop={1} gap={2}>
+        <Box gap={2}>
           <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
           <Text dimColor>q: quit</Text>
         </Box>
@@ -500,9 +500,9 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
   }
 
   return (
-    <Box flexDirection="column" padding={1}>
+    <Box flexDirection="column" padding={1} height={termHeight}>
       <Text bold>{filterLabel} ({filtered.length})</Text>
-      <Box marginTop={1}>
+      <Box marginTop={1} flexGrow={1}>
         <Box flexDirection="column" flexGrow={1}>
           {rows.map((row, rowIdx) => (
             <Box key={scrollRow + rowIdx}>
