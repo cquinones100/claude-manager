@@ -77,7 +77,6 @@ function SessionCard({ session, isSelected, isPulsing, width, height }: SessionC
 
 type SessionGridProps = {
   sessions: SessionSummary[]
-  onSelect: (sessionId: string) => void
   onResume: (target: ResumeTarget) => void
   onHide: (sessionId: string) => void
 }
@@ -86,7 +85,7 @@ const PULSE_DURATION = 1500
 
 type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined }
 
-export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGridProps) {
+export function SessionGrid({ sessions, onResume, onHide }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
   const termHeight = stdout?.rows ?? 24
@@ -155,9 +154,6 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
       setCursor((c) => Math.min(filtered.length - 1, c + COLS))
     }
     if (key.return) {
-      onSelect(filtered[cursor].sessionId)
-    }
-    if (input === "r") {
       const session = filtered[cursor]
       if (session) {
         if (session.pendingAction) {
@@ -252,8 +248,7 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
       </Box>
       <Box gap={2}>
         <Text dimColor>←↑↓→ navigate</Text>
-        <Text dimColor>enter: open</Text>
-        <Text dimColor>r: resume</Text>
+        <Text dimColor>enter: resume</Text>
         <Text dimColor>d: hide</Text>
         <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
         <Text dimColor>q: quit</Text>

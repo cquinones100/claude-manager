@@ -13,16 +13,6 @@ export type FeedEntry = {
   raw: Record<string, unknown>
 }
 
-export type ProjectFilter = {
-  name: string
-  selected: boolean
-}
-
-export type TypeFilter = {
-  type: EntryType
-  selected: boolean
-}
-
 export type PendingAction =
   | { kind: "question"; question: string; options: Array<{ label: string; description: string }> }
   | { kind: "tool"; description: string }
@@ -45,11 +35,3 @@ export type ResumeTarget = {
   cwd: string | undefined
 }
 
-export type ThreadItem =
-  | { kind: "prompt"; timestamp: string; text: string }
-  | { kind: "text"; timestamp: string; text: string; model: string | undefined }
-  | { kind: "tool"; timestamp: string; name: string; description: string; result: string; isError: boolean }
-
-export type View =
-  | { kind: "grid" }
-  | { kind: "feed"; sessionId: string; cwd: string | undefined }
