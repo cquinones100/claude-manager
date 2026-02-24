@@ -4,6 +4,7 @@ import Spinner from "ink-spinner"
 import { watch } from "node:fs"
 import { loadAllSessions, deriveSessions, CLAUDE_DIR } from "../sessions.js"
 import { loadHidden, addHidden } from "../hidden.js"
+import { loadNames, saveName, removeName } from "../names.js"
 import { FeedEntry } from "../types.js"
 import { SessionGrid } from "./SessionGrid.js"
 
@@ -13,11 +14,13 @@ export function App() {
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<FeedEntry[]>([])
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
+  const [names, setNames] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
-    Promise.all([loadAllSessions(), loadHidden()]).then(([{ entries }, hidden]) => {
+    Promise.all([loadAllSessions(), loadHidden(), loadNames()]).then(([{ entries }, hidden, names]) => {
       setEntries(entries)
       setHiddenIds(hidden)
+      setNames(names)
       setLoading(false)
     })
   }, [])
@@ -66,9 +69,23 @@ export function App() {
   return (
     <SessionGrid
       sessions={sessions}
+      names={names}
       onHide={(sessionId) => {
         addHidden(sessionId)
         setHiddenIds((prev) => new Set([...prev, sessionId]))
+      }}
+      onRename={(sessionId, name) => {
+        if (name) {
+          saveName(sessionId, name)
+          setNames((prev) => new Map([...prev, [sessionId, name]]))
+        } else {
+          removeName(sessionId)
+          setNames((prev) => {
+            const next = new Map(prev)
+            next.delete(sessionId)
+            return next
+          })
+        }
       }}
     />
   )

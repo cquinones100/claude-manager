@@ -5,6 +5,7 @@ import { PendingAction, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
 import { QuestionModal } from "./QuestionModal.js"
+import { RenameModal } from "./RenameModal.js"
 
 type SessionFilter = "active" | "all"
 
@@ -23,13 +24,14 @@ const CHROME_LINES = 4 // padding + title + footer
 
 type SessionCardProps = {
   session: SessionSummary
+  customName: string | undefined
   isSelected: boolean
   isPulsing: boolean
   width: number
   height: number
 }
 
-function SessionCard({ session, isSelected, isPulsing, width, height }: SessionCardProps) {
+function SessionCard({ session, customName, isSelected, isPulsing, width, height }: SessionCardProps) {
   const [waitingPulse, setWaitingPulse] = useState(false)
   const isWaiting = session.status === "waiting"
 
@@ -54,7 +56,7 @@ function SessionCard({ session, isSelected, isPulsing, width, height }: SessionC
       height={height}
     >
       <Box flexShrink={0} justifyContent="space-between">
-        <Text bold={isSelected} wrap="truncate">{session.project}</Text>
+        <Text bold={isSelected} wrap="truncate">{customName ?? session.project}</Text>
         {session.status === "thinking" && <Text color="blue">thinking<AnimatedEllipsis /></Text>}
         {session.status === "waiting" && <Text color="yellow">waiting<AnimatedEllipsis /></Text>}
       </Box>
@@ -104,7 +106,9 @@ function CopiedModal({ onDismiss, termWidth, termHeight }: { onDismiss: () => vo
 
 type SessionGridProps = {
   sessions: SessionSummary[]
+  names: Map<string, string>
   onHide: (sessionId: string) => void
+  onRename: (sessionId: string, name: string) => void
 }
 
 function escapeShell(str: string): string {
@@ -126,7 +130,7 @@ const PULSE_DURATION = 1500
 
 type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined }
 
-export function SessionGrid({ sessions, onHide }: SessionGridProps) {
+export function SessionGrid({ sessions, names, onHide, onRename }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
   const termHeight = stdout?.rows ?? 24
@@ -140,6 +144,7 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
   const prevCountsRef = useRef<Map<string, number>>(new Map())
   const [pendingModal, setPendingModal] = useState<PendingModal | null>(null)
   const [copiedModal, setCopiedModal] = useState(false)
+  const [renameModal, setRenameModal] = useState<{ sessionId: string; currentName: string } | null>(null)
 
   const clearScreen = () => process.stdout.write("\x1b[2J\x1b[H")
 
@@ -270,7 +275,32 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
         setCursor((c) => Math.min(c, filtered.length - 2))
       }
     }
-  }, { isActive: !pendingModal && !copiedModal })
+    if (input === "n") {
+      const session = filtered[cursor]
+      if (session) {
+        setRenameModal({
+          sessionId: session.sessionId,
+          currentName: names.get(session.sessionId) ?? session.project,
+        })
+      }
+    }
+  }, { isActive: !pendingModal && !copiedModal && !renameModal })
+
+  if (renameModal) {
+    return (
+      <RenameModal
+        currentName={renameModal.currentName}
+        onConfirm={(name) => {
+          clearScreen()
+          onRename(renameModal.sessionId, name)
+          setRenameModal(null)
+        }}
+        onCancel={() => { clearScreen(); setRenameModal(null) }}
+        termWidth={termWidth}
+        termHeight={termHeight}
+      />
+    )
+  }
 
   if (copiedModal) {
     return <CopiedModal onDismiss={() => { clearScreen(); setCopiedModal(false) }} termWidth={termWidth} termHeight={termHeight} />
@@ -335,6 +365,7 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
                   <SessionCard
                     key={session.sessionId}
                     session={session}
+                    customName={names.get(session.sessionId)}
                     isSelected={globalIdx === cursor}
                     isPulsing={pulsingIds.has(session.sessionId)}
                     width={cellWidth}
@@ -355,6 +386,7 @@ export function SessionGrid({ sessions, onHide }: SessionGridProps) {
       <Box gap={2}>
         <Text dimColor>←↑↓→ navigate</Text>
         <Text dimColor>enter: copy resume command</Text>
+        <Text dimColor>n: rename</Text>
         <Text dimColor>d: hide</Text>
         <Text dimColor>f: {filter === "active" ? "show all" : "active only"}</Text>
         <Text dimColor>q: quit</Text>
