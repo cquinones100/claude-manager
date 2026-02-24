@@ -6,6 +6,8 @@ import { App } from "./components/App.js"
 import { ResumeTarget } from "./types.js"
 
 async function run() {
+  process.stdout.write("\x1b[2J\x1b[H")
+
   let resumeTarget: ResumeTarget | null = null
 
   const { waitUntilExit } = render(
