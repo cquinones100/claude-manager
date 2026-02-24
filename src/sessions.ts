@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises"
+import { readdir, readFile, stat } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
 import { FeedEntry, SessionSummary, SessionStatus, PendingAction } from "./types.js"
@@ -147,9 +147,9 @@ export function parseEntry(
 async function parseSessionFile(
   filePath: string,
   project: string
-): Promise<FeedEntry[]> {
+): Promise<{ entries: FeedEntry[]; mtime: Date }> {
   const session = basename(filePath, ".jsonl")
-  const text = await readFile(filePath, "utf-8")
+  const [text, fileStat] = await Promise.all([readFile(filePath, "utf-8"), stat(filePath)])
   const entries: FeedEntry[] = []
   let cwd: string | undefined
 
@@ -166,16 +166,18 @@ async function parseSessionFile(
     }
   })
 
-  return entries
+  return { entries, mtime: fileStat.mtime }
 }
 
 export async function loadAllSessions(): Promise<{
   entries: FeedEntry[]
   projects: string[]
+  mtimes: Map<string, Date>
 }> {
   const projectDirs = await readdir(CLAUDE_DIR).catch((): string[] => [])
   const allEntries: FeedEntry[] = []
   const projectSet = new Set<string>()
+  const mtimes = new Map<string, Date>()
 
   await Promise.all(
     projectDirs.map(async (dirName) => {
@@ -188,10 +190,15 @@ export async function loadAllSessions(): Promise<{
         (f) => f.endsWith(".jsonl") && !SUBAGENT_PATTERN.test(f)
       )
 
-      const fileEntries = await Promise.all(
+      const fileResults = await Promise.all(
         jsonlFiles.map((f) => parseSessionFile(join(dirPath, f), project))
       )
-      fileEntries.forEach((entries) => allEntries.push(...entries))
+      fileResults.forEach(({ entries, mtime }) => {
+        allEntries.push(...entries)
+        if (entries.length > 0) {
+          mtimes.set(entries[0].session, mtime)
+        }
+      })
     })
   )
 
@@ -202,6 +209,7 @@ export async function loadAllSessions(): Promise<{
   return {
     entries: allEntries,
     projects: [...projectSet].sort(),
+    mtimes,
   }
 }
 
@@ -279,7 +287,7 @@ export function formatRelativeTime(date: Date): string {
   return `${diffHr}h ago`
 }
 
-export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
+export function deriveSessions(entries: FeedEntry[], mtimes?: Map<string, Date>): SessionSummary[] {
   const groups = entries.reduce((map, entry) => {
     const group = map.get(entry.session)
     if (group) {
@@ -312,14 +320,16 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
       const rawType = newest.raw.type as string
       const messageContent = (newest.raw.message as Record<string, unknown> | undefined)?.content
 
+      const mtime = mtimes?.get(sessionId)
+      const fileActive = mtime ? (now.getTime() - mtime.getTime()) < 10_000 : false
       const ageMs = now.getTime() - lastActivityAt.getTime()
-      const stale = ageMs > 5 * 60 * 1000
+      const recentEntry = ageMs < 5 * 60_000
 
       let status: SessionStatus = "idle"
-      if (!stale && rawType === "user") {
+      if ((fileActive || recentEntry) && rawType === "user") {
         status = "thinking"
       } else if (
-        !stale &&
+        (fileActive || recentEntry) &&
         Array.isArray(messageContent) &&
         messageContent.some((block: Record<string, unknown>) => block.type === "tool_use")
       ) {

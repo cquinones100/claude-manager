@@ -20,12 +20,14 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
 
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<FeedEntry[]>([])
+  const [mtimes, setMtimes] = useState<Map<string, Date>>(new Map())
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const [names, setNames] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
-    Promise.all([loadAllSessions(), loadHidden(), loadNames()]).then(([{ entries }, hidden, names]) => {
+    Promise.all([loadAllSessions(), loadHidden(), loadNames()]).then(([{ entries, mtimes }, hidden, names]) => {
       setEntries(entries)
+      setMtimes(mtimes)
       setHiddenIds(hidden)
       setNames(names)
       setLoading(false)
@@ -40,7 +42,7 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
 
       if (debounceTimer) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
-        loadAllSessions().then(({ entries }) => setEntries(entries))
+        loadAllSessions().then(({ entries, mtimes }) => { setEntries(entries); setMtimes(mtimes) })
       }, 300)
     })
 
@@ -51,8 +53,8 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
   }, [])
 
   const sessions = useMemo(
-    () => deriveSessions(entries).filter((s) => !hiddenIds.has(s.sessionId)),
-    [entries, hiddenIds],
+    () => deriveSessions(entries, mtimes).filter((s) => !hiddenIds.has(s.sessionId)),
+    [entries, mtimes, hiddenIds],
   )
 
   const handleResume = (target: ResumeTarget) => {

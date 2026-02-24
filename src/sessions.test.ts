@@ -408,7 +408,7 @@ describe("deriveSessions", () => {
     })
   })
 
-  it("falls back to idle when a 'thinking' session is stale (>5min)", () => {
+  it("falls back to idle when session entry is stale and no mtime provided", () => {
     const staleTime = new Date(Date.now() - 10 * 60_000).toISOString()
     const entries = [
       makeEntry({
@@ -421,7 +421,21 @@ describe("deriveSessions", () => {
     expect(sessions[0].status).toBe("idle")
   })
 
-  it("falls back to idle when a 'waiting' session is stale (>5min)", () => {
+  it("keeps 'thinking' status when session entry is stale but file mtime is recent", () => {
+    const staleTime = new Date(Date.now() - 10 * 60_000).toISOString()
+    const entries = [
+      makeEntry({
+        session: "s1",
+        timestamp: staleTime,
+        raw: { type: "user", timestamp: staleTime, message: { role: "user", content: "do something" } },
+      }),
+    ]
+    const mtimes = new Map([["s1", new Date()]])
+    const sessions = deriveSessions(entries, mtimes)
+    expect(sessions[0].status).toBe("thinking")
+  })
+
+  it("keeps 'waiting' status when session entry is stale but file mtime is recent", () => {
     const staleTime = new Date(Date.now() - 10 * 60_000).toISOString()
     const entries = [
       makeEntry({
@@ -440,8 +454,9 @@ describe("deriveSessions", () => {
         },
       }),
     ]
-    const sessions = deriveSessions(entries)
-    expect(sessions[0].status).toBe("idle")
+    const mtimes = new Map([["s1", new Date()]])
+    const sessions = deriveSessions(entries, mtimes)
+    expect(sessions[0].status).toBe("waiting")
   })
 
   it("derives 'idle' status when newest assistant message has only text blocks", () => {

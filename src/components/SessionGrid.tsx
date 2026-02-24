@@ -229,7 +229,9 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
   }
 
   const filtered = useMemo(
-    () => filter === "active" ? sessions.filter((s) => s.status !== "idle") : sessions,
+    () => filter === "active"
+      ? sessions.filter((s) => s.status !== "idle" || (Date.now() - s.lastActivityAt.getTime()) < 5 * 60_000)
+      : sessions,
     [sessions, filter],
   )
 
