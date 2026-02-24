@@ -10,7 +10,7 @@ import {
   loadSessionThread,
   deriveSessions,
   formatRelativeTime,
-  extractPendingQuestion,
+  extractPendingAction,
 } from "./sessions.js"
 import { FeedEntry, ThreadItem } from "./types.js"
 
@@ -363,10 +363,10 @@ describe("deriveSessions", () => {
     ]
     const sessions = deriveSessions(entries)
     expect(sessions[0].status).toBe("waiting")
-    expect(sessions[0].pendingQuestion).toBeUndefined()
+    expect(sessions[0].pendingAction).toEqual({ kind: "tool", description: "Bash: ls" })
   })
 
-  it("extracts pendingQuestion when waiting on AskUserQuestion", () => {
+  it("extracts pendingAction question when waiting on AskUserQuestion", () => {
     const entries = [
       makeEntry({
         session: "s1",
@@ -400,7 +400,8 @@ describe("deriveSessions", () => {
     ]
     const sessions = deriveSessions(entries)
     expect(sessions[0].status).toBe("waiting")
-    expect(sessions[0].pendingQuestion).toEqual({
+    expect(sessions[0].pendingAction).toEqual({
+      kind: "question",
       question: "Which database?",
       options: [
         { label: "PostgreSQL", description: "Relational DB" },
@@ -773,8 +774,8 @@ describe("loadSessionThread", () => {
   })
 })
 
-describe("extractPendingQuestion", () => {
-  it("returns full question and options from AskUserQuestion input", () => {
+describe("extractPendingAction", () => {
+  it("returns question action from AskUserQuestion input", () => {
     const content = [
       {
         type: "tool_use",
@@ -792,7 +793,8 @@ describe("extractPendingQuestion", () => {
         },
       },
     ]
-    expect(extractPendingQuestion(content)).toEqual({
+    expect(extractPendingAction(content)).toEqual({
+      kind: "question",
       question: "Which framework?",
       options: [
         { label: "React", description: "Component-based UI" },
@@ -801,19 +803,19 @@ describe("extractPendingQuestion", () => {
     })
   })
 
-  it("returns undefined for non-AskUserQuestion tool calls", () => {
+  it("returns tool action for non-AskUserQuestion tool calls", () => {
     const content = [
       { type: "tool_use", name: "Bash", input: { command: "ls" } },
     ]
-    expect(extractPendingQuestion(content)).toBeUndefined()
+    expect(extractPendingAction(content)).toEqual({ kind: "tool", description: "Bash: ls" })
   })
 
   it("returns undefined for non-array content", () => {
-    expect(extractPendingQuestion("just a string")).toBeUndefined()
-    expect(extractPendingQuestion(undefined)).toBeUndefined()
+    expect(extractPendingAction("just a string")).toBeUndefined()
+    expect(extractPendingAction(undefined)).toBeUndefined()
   })
 
-  it("returns undefined when AskUserQuestion has no options", () => {
+  it("falls back to tool action when AskUserQuestion has no options", () => {
     const content = [
       {
         type: "tool_use",
@@ -821,7 +823,7 @@ describe("extractPendingQuestion", () => {
         input: { questions: [{ question: "Pick one" }] },
       },
     ]
-    expect(extractPendingQuestion(content)).toBeUndefined()
+    expect(extractPendingAction(content)).toEqual({ kind: "tool", description: "AskUserQuestion: Pick one" })
   })
 })
 

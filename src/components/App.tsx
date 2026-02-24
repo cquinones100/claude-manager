@@ -129,7 +129,7 @@ export function App({ onResume }: AppProps) {
       }}
       onResume={() => {
         if (view.kind === "feed") {
-          onResume({ sessionId: view.sessionId, cwd: view.cwd, resumeMessage: undefined })
+          onResume({ sessionId: view.sessionId, cwd: view.cwd })
           exit()
         }
       }}

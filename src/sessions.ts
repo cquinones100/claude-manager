@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
-import { FeedEntry, EntryType, SessionSummary, SessionStatus, ThreadItem, PendingQuestion } from "./types.js"
+import { FeedEntry, EntryType, SessionSummary, SessionStatus, ThreadItem, PendingAction } from "./types.js"
 
 export const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
@@ -217,7 +217,7 @@ export function formatModelName(raw: string): string {
   return raw
 }
 
-export function extractPendingQuestion(messageContent: unknown): PendingQuestion | undefined {
+export function extractPendingAction(messageContent: unknown): PendingAction | undefined {
   if (!Array.isArray(messageContent)) return undefined
   const toolUse = [...messageContent]
     .reverse()
@@ -225,21 +225,23 @@ export function extractPendingQuestion(messageContent: unknown): PendingQuestion
   if (!toolUse) return undefined
 
   const name = toolUse.name as string
-  if (name !== "AskUserQuestion") return undefined
-
   const input = toolUse.input as Record<string, unknown> | undefined
-  if (!input || !Array.isArray(input.questions)) return undefined
 
-  const q = input.questions[0] as Record<string, unknown> | undefined
-  if (!q?.question || !Array.isArray(q.options)) return undefined
-
-  return {
-    question: String(q.question),
-    options: (q.options as Array<Record<string, unknown>>).map((opt) => ({
-      label: String(opt.label ?? ""),
-      description: String(opt.description ?? ""),
-    })),
+  if (name === "AskUserQuestion" && input && Array.isArray(input.questions)) {
+    const q = input.questions[0] as Record<string, unknown> | undefined
+    if (q?.question && Array.isArray(q.options)) {
+      return {
+        kind: "question",
+        question: String(q.question),
+        options: (q.options as Array<Record<string, unknown>>).map((opt) => ({
+          label: String(opt.label ?? ""),
+          description: String(opt.description ?? ""),
+        })),
+      }
+    }
   }
+
+  return { kind: "tool", description: toolCallDescription(name, input) }
 }
 
 function extractSessionMeta(group: FeedEntry[]): {
@@ -351,7 +353,7 @@ export function deriveSessions(entries: FeedEntry[]): SessionSummary[] {
         model,
         gitBranch,
         status,
-        pendingQuestion: status === "waiting" ? extractPendingQuestion(messageContent) : undefined,
+        pendingAction: status === "waiting" ? extractPendingAction(messageContent) : undefined,
       })
     }
   })

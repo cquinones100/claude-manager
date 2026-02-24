@@ -23,10 +23,9 @@ export type TypeFilter = {
   selected: boolean
 }
 
-export type PendingQuestion = {
-  question: string
-  options: Array<{ label: string; description: string }>
-}
+export type PendingAction =
+  | { kind: "question"; question: string; options: Array<{ label: string; description: string }> }
+  | { kind: "tool"; description: string }
 
 export type SessionSummary = {
   sessionId: string
@@ -38,13 +37,12 @@ export type SessionSummary = {
   model: string | undefined
   gitBranch: string | undefined
   status: SessionStatus
-  pendingQuestion: PendingQuestion | undefined
+  pendingAction: PendingAction | undefined
 }
 
 export type ResumeTarget = {
   sessionId: string
   cwd: string | undefined
-  resumeMessage: string | undefined
 }
 
 export type ThreadItem =

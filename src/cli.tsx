@@ -19,10 +19,8 @@ async function run() {
 let target: ResumeTarget | null = await run()
 
 while (target) {
-  const { sessionId, cwd, resumeMessage } = target
-  const args = ["--resume", sessionId]
-  if (resumeMessage) args.push(resumeMessage)
-  spawnSync("claude", args, {
+  const { sessionId, cwd } = target
+  spawnSync("claude", ["--resume", sessionId], {
     stdio: "inherit",
     cwd,
   })

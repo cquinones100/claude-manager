@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react"
 import { Box, Text, useInput, useStdout } from "ink"
-import { PendingQuestion, ResumeTarget, SessionSummary } from "../types.js"
+import { PendingAction, ResumeTarget, SessionSummary } from "../types.js"
 import { formatRelativeTime, formatModelName } from "../sessions.js"
 import { Scrollbar } from "./Scrollbar.js"
 import { QuestionModal } from "./QuestionModal.js"
@@ -84,7 +84,7 @@ type SessionGridProps = {
 
 const PULSE_DURATION = 1500
 
-type PendingModal = PendingQuestion & { sessionId: string; cwd: string | undefined }
+type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined }
 
 export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGridProps) {
   const { stdout } = useStdout()
@@ -160,14 +160,14 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
     if (input === "r") {
       const session = filtered[cursor]
       if (session) {
-        if (session.pendingQuestion) {
+        if (session.pendingAction) {
           setPendingModal({
-            ...session.pendingQuestion,
+            ...session.pendingAction,
             sessionId: session.sessionId,
             cwd: session.cwd,
           })
         } else {
-          onResume({ sessionId: session.sessionId, cwd: session.cwd, resumeMessage: undefined })
+          onResume({ sessionId: session.sessionId, cwd: session.cwd })
         }
       }
     }
@@ -183,11 +183,11 @@ export function SessionGrid({ sessions, onSelect, onResume, onHide }: SessionGri
   if (pendingModal) {
     return (
       <QuestionModal
-        question={pendingModal}
-        onSelect={(label) => {
+        action={pendingModal}
+        onConfirm={() => {
           const { sessionId, cwd } = pendingModal
           setPendingModal(null)
-          onResume({ sessionId, cwd, resumeMessage: label })
+          onResume({ sessionId, cwd })
         }}
         onCancel={() => setPendingModal(null)}
       />
