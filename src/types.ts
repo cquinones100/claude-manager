@@ -21,6 +21,7 @@ export type ResumeTarget = {
   sessionId: string
   cwd: string | undefined
   prompt: string | undefined
+  label: string
 }
 
 export type SessionSummary = {

@@ -187,7 +187,7 @@ function copyToClipboard(text: string) {
 const PULSE_DURATION = 1500
 
 type ModalAction = "copy" | "resume"
-type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined; action: ModalAction }
+type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined; label: string; action: ModalAction }
 
 function useTerminalSize() {
   const { stdout } = useStdout()
@@ -206,6 +206,26 @@ function useTerminalSize() {
     }
     stdout?.on("resize", onResize)
     return () => { stdout?.off("resize", onResize) }
+  }, [stdout])
+
+  // Re-render on terminal focus-in (e.g. iTerm tab switch)
+  useEffect(() => {
+    process.stdout.write("\x1b[?1004h")
+
+    const onFocus = (data: Buffer) => {
+      if (data.toString().includes("\x1b[I")) {
+        process.stdout.write("\x1b[2J\x1b[H")
+        setSize({
+          width: stdout?.columns ?? 80,
+          height: stdout?.rows ?? 24,
+        })
+      }
+    }
+    process.stdin.on("data", onFocus)
+    return () => {
+      process.stdin.off("data", onFocus)
+      process.stdout.write("\x1b[?1004l")
+    }
   }, [stdout])
 
   return size
@@ -240,6 +260,7 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
         ...session.pendingAction,
         sessionId: session.sessionId,
         cwd: session.cwd,
+        label: labelFor(session),
         action: "copy",
       })
     } else {
@@ -247,9 +268,14 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
     }
   }
 
+  function labelFor(session: SessionSummary): string {
+    return names.get(session.sessionId) ?? session.project
+  }
+
   function resumeSession(session: SessionSummary) {
+    const label = labelFor(session)
     if (activeWindows.has(session.sessionId)) {
-      onResume({ sessionId: session.sessionId, cwd: session.cwd, prompt: undefined })
+      onResume({ sessionId: session.sessionId, cwd: session.cwd, prompt: undefined, label })
       return
     }
     if (session.pendingAction?.kind === "question") {
@@ -257,13 +283,14 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
         ...session.pendingAction,
         sessionId: session.sessionId,
         cwd: session.cwd,
+        label,
         action: "resume",
       })
     } else if (session.pendingAction?.kind === "tool") {
       const prompt = `${session.pendingAction.description}\n\nyes, go ahead`
-      setConfirmResume({ sessionId: session.sessionId, cwd: session.cwd, prompt })
+      setConfirmResume({ sessionId: session.sessionId, cwd: session.cwd, prompt, label })
     } else {
-      setConfirmResume({ sessionId: session.sessionId, cwd: session.cwd, prompt: undefined })
+      setConfirmResume({ sessionId: session.sessionId, cwd: session.cwd, prompt: undefined, label })
     }
   }
 
@@ -323,7 +350,7 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
     setCursor(globalIdx)
     const session = filtered[globalIdx]
     if (activeWindows.has(session.sessionId)) {
-      onResume({ sessionId: session.sessionId, cwd: session.cwd, prompt: undefined })
+      onResume({ sessionId: session.sessionId, cwd: session.cwd, prompt: undefined, label: labelFor(session) })
     } else {
       selectSession(session)
     }
@@ -445,11 +472,11 @@ export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, 
         action={pendingModal}
         confirmLabel={isResume ? "resume" : "copy command"}
         onConfirm={() => {
-          const { sessionId, cwd } = pendingModal
+          const { sessionId, cwd, label } = pendingModal
           clearScreen()
           setPendingModal(null)
           if (isResume) {
-            onResume({ sessionId, cwd, prompt: undefined })
+            onResume({ sessionId, cwd, prompt: undefined, label })
           } else {
             const prompt = pendingModal.kind === "tool"
               ? `${pendingModal.description}\n\nyes, go ahead`

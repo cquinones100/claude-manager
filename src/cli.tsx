@@ -42,7 +42,7 @@ while (running) {
     continue
   }
 
-  const { sessionId, cwd, prompt } = resumeTarget
+  const { sessionId, cwd, prompt, label } = resumeTarget
 
   if (!ptyManager.has(sessionId)) {
     killExistingSession(sessionId)
@@ -54,7 +54,7 @@ while (running) {
   }
 
   process.stdout.write("\x1b[2J\x1b[H")
-  await ptyManager.attach(sessionId)
+  await ptyManager.attach(sessionId, label)
 }
 
 cleanup()

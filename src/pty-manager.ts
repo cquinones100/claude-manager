@@ -89,7 +89,7 @@ export class PtyManager {
     this.processes.set(id, entry)
   }
 
-  attach(id: string): Promise<"detached" | "exited"> {
+  attach(id: string, label?: string): Promise<"detached" | "exited"> {
     const entry = this.processes.get(id)
     if (!entry || !entry.alive) return Promise.resolve("exited")
 
@@ -98,12 +98,50 @@ export class PtyManager {
     return new Promise((resolve) => {
       let resolved = false
 
+      const getCols = () => process.stdout.columns ?? 80
+      const getRows = () => process.stdout.rows ?? 24
+
+      const renderStatusBar = () => {
+        const cols = getCols()
+        const rows = getRows()
+        const hint = " ctrl+x: home "
+        const sessionLabel = label ? ` ${label} ` : ""
+        const content = hint + sessionLabel
+        const padded = content + " ".repeat(Math.max(0, cols - content.length))
+        // Save cursor, move to last row, reverse video, draw, restore cursor
+        process.stdout.write(
+          `\x1b7\x1b[${rows};1H\x1b[7m${padded}\x1b[27m\x1b8`
+        )
+      }
+
+      const setupScrollRegion = () => {
+        const cols = getCols()
+        const rows = getRows()
+        const ptyRows = Math.max(1, rows - 1)
+        // Set scroll region to all rows except the last
+        process.stdout.write(`\x1b[1;${ptyRows}r`)
+        // Position cursor at top-left within scroll region
+        process.stdout.write("\x1b[1;1H")
+        // Resize PTY to fit within scroll region
+        try { instance.resize(cols, ptyRows) } catch {}
+        // Draw the status bar on the reserved bottom row
+        renderStatusBar()
+      }
+
+      const resetScrollRegion = () => {
+        // Reset scroll region to full terminal
+        process.stdout.write("\x1b[r")
+      }
+
       const cleanup = () => {
         entry.attached = false
         process.stdin.off("data", stdinHandler)
         process.stdout.off("resize", resizeHandler)
         dataDisposable.dispose()
         exitDisposable.dispose()
+        resetScrollRegion()
+        // Disable focus reporting
+        process.stdout.write("\x1b[?1004l")
         if (process.stdin.isTTY) {
           process.stdin.setRawMode(false)
         }
@@ -117,6 +155,12 @@ export class PtyManager {
         resolve(reason)
       }
 
+      // Enable focus reporting so we detect iTerm tab switches
+      process.stdout.write("\x1b[?1004h")
+
+      // Set up scroll region before flushing buffer
+      setupScrollRegion()
+
       // Flush any output that arrived while detached
       if (entry.outputBuffer) {
         process.stdout.write(entry.outputBuffer)
@@ -124,9 +168,10 @@ export class PtyManager {
       }
       entry.attached = true
 
-      // Forward live PTY output to stdout
+      // Forward live PTY output to stdout, then re-render status bar
       const dataDisposable = instance.onData((data) => {
         process.stdout.write(data)
+        renderStatusBar()
       })
 
       const exitDisposable = instance.onExit(() => {
@@ -140,15 +185,33 @@ export class PtyManager {
           done("detached")
           return
         }
-        instance.write(str)
+        // Strip focus reporting sequences, redraw on focus-in
+        const hasFocusIn = str.includes("\x1b[I")
+        const cleaned = str.replaceAll("\x1b[I", "").replaceAll("\x1b[O", "")
+        if (hasFocusIn) {
+          setupScrollRegion()
+          const cols = getCols()
+          const ptyRows = Math.max(1, getRows() - 1)
+          try {
+            instance.resize(Math.max(1, cols - 1), ptyRows)
+            setTimeout(() => {
+              try { instance.resize(cols, ptyRows) } catch { /* resize may fail if exited */ }
+            }, 50)
+          } catch { /* resize may fail if exited */ }
+        }
+        if (cleaned.length > 0) {
+          instance.write(cleaned)
+        }
       }
 
       const resizeHandler = () => {
-        try {
-          instance.resize(process.stdout.columns ?? 80, process.stdout.rows ?? 24)
-        } catch {
-          // PTY may have exited between resize event and handler
-        }
+        const cols = getCols()
+        const rows = getRows()
+        const ptyRows = Math.max(1, rows - 1)
+        // Update scroll region and PTY size
+        process.stdout.write(`\x1b[1;${ptyRows}r`)
+        try { instance.resize(cols, ptyRows) } catch {}
+        renderStatusBar()
       }
 
       if (process.stdin.isTTY) {
@@ -159,13 +222,13 @@ export class PtyManager {
       process.stdout.on("resize", resizeHandler)
 
       // Trigger repaint via delayed SIGWINCH
-      const cols = process.stdout.columns ?? 80
-      const rows = process.stdout.rows ?? 24
+      const cols = getCols()
+      const ptyRows = Math.max(1, getRows() - 1)
       setTimeout(() => {
         try {
-          instance.resize(Math.max(1, cols - 1), rows)
+          instance.resize(Math.max(1, cols - 1), ptyRows)
           setTimeout(() => {
-            try { instance.resize(cols, rows) } catch {}
+            try { instance.resize(cols, ptyRows) } catch {}
           }, 50)
         } catch {}
       }, 100)
