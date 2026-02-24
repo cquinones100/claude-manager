@@ -5,7 +5,6 @@ import { watch } from "node:fs"
 import { loadAllSessions, deriveSessions, CLAUDE_DIR } from "../sessions.js"
 import { loadHidden, addHidden } from "../hidden.js"
 import { loadNames, saveName, removeName } from "../names.js"
-import { getRunningSessionIds } from "../pty-manager.js"
 import { FeedEntry, ResumeTarget } from "../types.js"
 import { SessionGrid } from "./SessionGrid.js"
 
@@ -23,7 +22,6 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
   const [entries, setEntries] = useState<FeedEntry[]>([])
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
   const [names, setNames] = useState<Map<string, string>>(new Map())
-  const [runningIds, setRunningIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     Promise.all([loadAllSessions(), loadHidden(), loadNames()]).then(([{ entries }, hidden, names]) => {
@@ -56,21 +54,6 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
     () => deriveSessions(entries).filter((s) => !hiddenIds.has(s.sessionId)),
     [entries, hiddenIds],
   )
-
-  const refreshRunning = React.useCallback(() => {
-    const ids = sessions.map((s) => s.sessionId)
-    setRunningIds(getRunningSessionIds(ids))
-  }, [sessions])
-
-  useEffect(() => {
-    if (!loading) refreshRunning()
-  }, [loading, refreshRunning])
-
-  useEffect(() => {
-    if (loading) return
-    const id = setInterval(refreshRunning, 5000)
-    return () => clearInterval(id)
-  }, [loading, refreshRunning])
 
   const handleResume = (target: ResumeTarget) => {
     onResume(target)
@@ -108,7 +91,6 @@ export function App({ onResume, activeWindows: initialWindows, onKillWindow }: A
     <SessionGrid
       sessions={sessions}
       names={names}
-      runningIds={runningIds}
       onHide={(sessionId) => {
         addHidden(sessionId)
         setHiddenIds((prev) => new Set([...prev, sessionId]))

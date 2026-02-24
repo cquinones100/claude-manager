@@ -143,7 +143,6 @@ function ConfirmResumeModal({ onConfirm, onCancel, termWidth, termHeight }: { on
 type SessionGridProps = {
   sessions: SessionSummary[]
   names: Map<string, string>
-  runningIds: Set<string>
   onHide: (sessionId: string) => void
   onResume: (target: ResumeTarget) => void
   activeWindows: Set<string>
@@ -171,7 +170,7 @@ const PULSE_DURATION = 1500
 type ModalAction = "copy" | "resume"
 type PendingModal = PendingAction & { sessionId: string; cwd: string | undefined; action: ModalAction }
 
-export function SessionGrid({ sessions, names, runningIds, onHide, onResume, activeWindows, onKillWindow, onRename }: SessionGridProps) {
+export function SessionGrid({ sessions, names, onHide, onResume, activeWindows, onKillWindow, onRename }: SessionGridProps) {
   const { stdout } = useStdout()
   const termWidth = stdout?.columns ?? 80
   const termHeight = stdout?.rows ?? 24
@@ -230,8 +229,8 @@ export function SessionGrid({ sessions, names, runningIds, onHide, onResume, act
   }
 
   const filtered = useMemo(
-    () => filter === "active" ? sessions.filter((s) => runningIds.has(s.sessionId)) : sessions,
-    [sessions, filter, runningIds],
+    () => filter === "active" ? sessions.filter((s) => s.status !== "idle") : sessions,
+    [sessions, filter],
   )
 
   useEffect(() => {
