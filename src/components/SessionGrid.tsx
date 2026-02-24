@@ -45,16 +45,19 @@ function SessionCard({ session, customName, isSelected, isPulsing, hasWindow, wi
     }
   }, [isWaiting])
 
-  const borderColor = isPulsing ? "green" : waitingPulse ? "yellow" : isSelected ? "blue" : "gray"
+  const hasInnerBorder = isPulsing || waitingPulse
+  const needsOuterBorder = isSelected && hasInnerBorder
+  const innerBorderColor = isPulsing ? "green" : waitingPulse ? "yellow" : isSelected ? "blue" : "gray"
+  const innerBorderStyle = (isPulsing || waitingPulse || isSelected) ? "bold" as const : "round" as const
 
-  return (
+  const cardContent = (
     <Box
       flexDirection="column"
-      borderStyle={isSelected || isPulsing || waitingPulse ? "bold" : "round"}
-      borderColor={borderColor}
+      borderStyle={needsOuterBorder ? innerBorderStyle : innerBorderStyle}
+      borderColor={needsOuterBorder ? innerBorderColor : innerBorderColor}
       paddingX={1}
-      width={width}
-      height={height}
+      width={needsOuterBorder ? width - 2 : width}
+      height={needsOuterBorder ? height - 2 : height}
     >
       <Box flexShrink={0} justifyContent="space-between">
         <Text bold={isSelected} wrap="truncate">{hasWindow && <Text color="green">▶ </Text>}{customName ?? session.project}</Text>
@@ -77,6 +80,22 @@ function SessionCard({ session, customName, isSelected, isPulsing, hasWindow, wi
       </Box>
     </Box>
   )
+
+  if (needsOuterBorder) {
+    return (
+      <Box
+        flexDirection="column"
+        borderStyle="bold"
+        borderColor="blue"
+        width={width}
+        height={height}
+      >
+        {cardContent}
+      </Box>
+    )
+  }
+
+  return cardContent
 }
 
 function CopiedModal({ onDismiss, termWidth, termHeight }: { onDismiss: () => void; termWidth: number; termHeight: number }) {
