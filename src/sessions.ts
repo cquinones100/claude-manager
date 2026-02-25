@@ -6,7 +6,7 @@ import { FeedEntry, SessionSummary, SessionStatus, PendingAction } from "./types
 export const CLAUDE_DIR = join(homedir(), ".claude", "projects")
 const SUBAGENT_PATTERN = /subagent/i
 
-export function truncate(text: string, max = 200): string {
+export function truncate(text: string, max = 2000): string {
   if (text.length <= max) return text
   return text.slice(0, max) + "…"
 }

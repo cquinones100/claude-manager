@@ -18,9 +18,9 @@ describe("truncate", () => {
   })
 
   it("truncates strings exceeding the limit", () => {
-    const long = "a".repeat(250)
+    const long = "a".repeat(2500)
     const result = truncate(long)
-    expect(result.length).toBe(201) // 200 chars + ellipsis
+    expect(result.length).toBe(2001) // 2000 chars + ellipsis
     expect(result.endsWith("…")).toBe(true)
   })
 
