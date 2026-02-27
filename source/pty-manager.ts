@@ -62,6 +62,7 @@ export class PtyManager {
 
     return new Promise((resolve) => {
       let resolved = false;
+      let statusBarTimer: ReturnType<typeof setTimeout> | null = null;
 
       const getCols = () => process.stdout.columns ?? 80;
       const getRows = () => process.stdout.rows ?? 24;
@@ -93,6 +94,7 @@ export class PtyManager {
       };
 
       const cleanup = () => {
+        if (statusBarTimer) clearTimeout(statusBarTimer);
         entry.attached = false;
         process.stdin.off("data", stdinHandler);
         process.stdout.off("resize", resizeHandler);
@@ -122,9 +124,19 @@ export class PtyManager {
       }
       entry.attached = true;
 
+      // Debounce status bar redraws so we never interleave escape
+      // sequences with the child's output stream.  The scroll region
+      // already protects the bar row during normal output; this only
+      // refreshes it after output settles (e.g. after a full-screen
+      // clear from the child).
+      const scheduleStatusBar = () => {
+        if (statusBarTimer) clearTimeout(statusBarTimer);
+        statusBarTimer = setTimeout(renderStatusBar, 150);
+      };
+
       const dataDisposable = instance.onData((data) => {
         process.stdout.write(data);
-        renderStatusBar();
+        scheduleStatusBar();
       });
 
       const exitDisposable = instance.onExit(() => {
