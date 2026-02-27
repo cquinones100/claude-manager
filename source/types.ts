@@ -11,3 +11,8 @@ export type CreateResult = {
   success: boolean;
   message: string;
 };
+
+export type ResumeTarget = {
+  worktreePath: string;
+  label: string;
+};

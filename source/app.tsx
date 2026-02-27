@@ -1,13 +1,19 @@
 import { useState, useEffect } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
-import type { AppScreen, CreateResult, Worktree } from "./types.js";
+import type { AppScreen, CreateResult, ResumeTarget, Worktree } from "./types.js";
 import { getRepoRoot, listWorktrees, createWorktree } from "./git/worktree.js";
 import { WorktreeList } from "./components/worktree-list.js";
 import { CreateWorktree } from "./components/create-worktree.js";
 import { StatusMessage } from "./components/status-message.js";
 
-export function App() {
+type AppProps = {
+  onResume: (target: ResumeTarget) => void;
+  activeSessionIds: Set<string>;
+  onKillSession: (id: string) => void;
+};
+
+export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
   const { exit } = useApp();
   const [screen, setScreen] = useState<AppScreen>("list");
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
@@ -97,7 +103,13 @@ export function App() {
   return (
     <WorktreeList
       worktrees={worktrees}
+      activeSessionIds={activeSessionIds}
       onCreateNew={() => setScreen("create")}
+      onSelectWorktree={(path, branch) => {
+        onResume({ worktreePath: path, label: branch });
+        exit();
+      }}
+      onKillSession={onKillSession}
     />
   );
 }
