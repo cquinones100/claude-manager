@@ -15,6 +15,7 @@ type WorktreeListProps = {
   onCreateNew: (parentBranch: string) => void;
   onSelectWorktree: (path: string, branch: string) => void;
   onKillSession: (id: string) => void;
+  onDeleteWorktree: (path: string, branch: string) => void;
 };
 
 function abbreviatePath(fullPath: string): string {
@@ -76,6 +77,7 @@ export function WorktreeList({
   onCreateNew,
   onSelectWorktree,
   onKillSession,
+  onDeleteWorktree,
 }: WorktreeListProps) {
   const [highlightedIndex, setHighlightedIndex] = useState(0);
 
@@ -99,6 +101,12 @@ export function WorktreeList({
       const item = items[highlightedIndex];
       if (item) {
         onCreateNew(item.branch);
+      }
+    } else if (input === "x") {
+      if (highlightedIndex === 0) return;
+      const item = items[highlightedIndex];
+      if (item) {
+        onDeleteWorktree(item.path, item.branch);
       }
     }
   });
@@ -133,7 +141,7 @@ export function WorktreeList({
       </Box>
       <Box marginTop={1}>
         <Text dimColor>
-          enter to start/resume, n to create child{highlightedIsActive ? ", del to kill session" : ""}, q to exit
+          enter to start/resume, n to create child, x to delete{highlightedIsActive ? ", del to kill session" : ""}, q to exit
         </Text>
       </Box>
     </Box>

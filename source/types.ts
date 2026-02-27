@@ -5,7 +5,7 @@ export type Worktree = {
   isBare: boolean;
 };
 
-export type AppScreen = "list" | "create" | "result";
+export type AppScreen = "list" | "create" | "result" | "delete-confirm";
 
 export type CreateResult = {
   success: boolean;

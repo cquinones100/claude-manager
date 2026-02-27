@@ -75,6 +75,24 @@ export async function createWorktree(
   }
 }
 
+export async function deleteWorktree(
+  path: string,
+  branch: string,
+): Promise<CreateResult> {
+  try {
+    await execa("git", ["worktree", "remove", path]);
+    await execa("git", ["branch", "-D", branch]);
+    return {
+      success: true,
+      message: `Deleted worktree "${branch}"`,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error deleting worktree";
+    return { success: false, message };
+  }
+}
+
 export async function getDefaultBranch(): Promise<string> {
   try {
     await execa("git", ["rev-parse", "--verify", "main"]);

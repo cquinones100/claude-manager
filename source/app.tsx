@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
 import type { AppScreen, CreateResult, ResumeTarget, TreeNode } from "./types.js";
-import { getRepoRoot, listWorktrees, createWorktree, buildWorktreeTree } from "./git/worktree.js";
+import { getRepoRoot, listWorktrees, createWorktree, deleteWorktree, buildWorktreeTree } from "./git/worktree.js";
 import { WorktreeList } from "./components/worktree-list.js";
 import { CreateWorktree } from "./components/create-worktree.js";
+import { DeleteConfirm } from "./components/delete-confirm.js";
 import { StatusMessage } from "./components/status-message.js";
 
 type AppProps = {
@@ -22,6 +23,7 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<CreateResult>({ success: false, message: "" });
   const [parentBranch, setParentBranch] = useState<string>("");
+  const [deleteTarget, setDeleteTarget] = useState<{ path: string; branch: string }>({ path: "", branch: "" });
 
   useInput((input) => {
     if (screen === "list" && input === "q") {
@@ -90,6 +92,23 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
     );
   }
 
+  if (screen === "delete-confirm") {
+    return (
+      <DeleteConfirm
+        branch={deleteTarget.branch}
+        onConfirm={async () => {
+          if (activeSessionIds.has(deleteTarget.path)) {
+            onKillSession(deleteTarget.path);
+          }
+          const deleteResult = await deleteWorktree(deleteTarget.path, deleteTarget.branch);
+          setResult(deleteResult);
+          setScreen("result");
+        }}
+        onCancel={() => setScreen("list")}
+      />
+    );
+  }
+
   if (screen === "result") {
     return (
       <StatusMessage
@@ -125,6 +144,10 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
         exit();
       }}
       onKillSession={onKillSession}
+      onDeleteWorktree={(path, branch) => {
+        setDeleteTarget({ path, branch });
+        setScreen("delete-confirm");
+      }}
     />
   );
 }
