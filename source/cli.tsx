@@ -6,6 +6,37 @@ import { App } from "./app.js";
 import { PtyManager } from "./pty-manager.js";
 import type { ResumeTarget } from "./types.js";
 
+// Synchronized output (DEC mode 2026): wraps each stdout write with markers
+// that tell the terminal to buffer and display atomically, eliminating flicker
+// on full-screen redraws. Supported by iTerm2, kitty, Alacritty, WezTerm,
+// Windows Terminal, etc. Unsupported terminals ignore the markers harmlessly.
+function createSyncStdout() {
+  const real = process.stdout;
+  return new Proxy(real, {
+    get(target, prop, receiver) {
+      if (prop === "write") {
+        return function (
+          chunk: string | Buffer,
+          encodingOrCb?: BufferEncoding | ((err?: Error | null) => void),
+          cb?: (err?: Error | null) => void,
+        ) {
+          const str = typeof chunk === "string" ? chunk : chunk.toString();
+          return target.write(
+            `\x1b[?2026h${str}\x1b[?2026l`,
+            encodingOrCb as BufferEncoding,
+            cb,
+          );
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value === "function") {
+        return value.bind(target);
+      }
+      return value;
+    },
+  });
+}
+
 meow(
   `
   Usage
@@ -77,6 +108,8 @@ while (running) {
   };
   process.stdin.on("data", forward);
 
+  const inkStdout = createSyncStdout();
+
   const { waitUntilExit } = render(
     <App
       onResume={(target) => {
@@ -87,7 +120,10 @@ while (running) {
         ptyManager.kill(id);
       }}
     />,
-    { stdin: inkStdin as unknown as typeof process.stdin },
+    {
+      stdin: inkStdin as unknown as typeof process.stdin,
+      stdout: inkStdout as unknown as typeof process.stdout,
+    },
   );
 
   await waitUntilExit();
@@ -104,7 +140,13 @@ while (running) {
     continue;
   }
 
-  if (!ptyManager.has(resumeTarget.worktreePath)) {
+  if (resumeTarget.sessionId) {
+    // Kill existing PTY if any (switching sessions)
+    if (ptyManager.has(resumeTarget.worktreePath)) {
+      ptyManager.kill(resumeTarget.worktreePath);
+    }
+    ptyManager.spawn(resumeTarget.worktreePath, ["--resume", resumeTarget.sessionId]);
+  } else if (!ptyManager.has(resumeTarget.worktreePath)) {
     ptyManager.spawn(resumeTarget.worktreePath);
   }
 

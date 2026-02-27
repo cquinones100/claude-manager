@@ -19,7 +19,7 @@ export class PtyManager {
   private processes = new Map<string, PtyEntry>();
   private claudePath: string | undefined;
 
-  spawn(id: string): void {
+  spawn(id: string, args: string[] = []): void {
     if (this.processes.has(id)) return;
 
     if (!this.claudePath) {
@@ -28,7 +28,7 @@ export class PtyManager {
 
     const cwd = existsSync(id) ? id : process.cwd();
 
-    const instance = nodePty.spawn(this.claudePath, [], {
+    const instance = nodePty.spawn(this.claudePath, args, {
       name: "xterm-256color",
       cols: process.stdout.columns ?? 80,
       rows: process.stdout.rows ?? 24,

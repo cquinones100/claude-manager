@@ -7,6 +7,7 @@ import { WorktreeList } from "./components/worktree-list.js";
 import { CreateWorktree } from "./components/create-worktree.js";
 import { DeleteConfirm } from "./components/delete-confirm.js";
 import { StatusMessage } from "./components/status-message.js";
+import { SessionList } from "./components/session-list.js";
 
 type AppProps = {
   onResume: (target: ResumeTarget) => void;
@@ -24,6 +25,7 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
   const [result, setResult] = useState<CreateResult>({ success: false, message: "" });
   const [parentBranch, setParentBranch] = useState<string>("");
   const [deleteTarget, setDeleteTarget] = useState<{ path: string; branch: string }>({ path: "", branch: "" });
+  const [sessionsTarget, setSessionsTarget] = useState<{ worktreePath: string; branch: string }>({ worktreePath: "", branch: "" });
 
   useInput((input) => {
     if (screen === "list" && input === "q") {
@@ -121,6 +123,29 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
     );
   }
 
+  if (screen === "sessions") {
+    return (
+      <SessionList
+        worktreePath={sessionsTarget.worktreePath}
+        worktreeLabel={sessionsTarget.branch}
+        activeSessionIds={activeSessionIds}
+        onKillSession={onKillSession}
+        onResume={(sessionId) => {
+          onResume({
+            worktreePath: sessionsTarget.worktreePath,
+            label: sessionsTarget.branch,
+            sessionId,
+          });
+          exit();
+        }}
+        onBack={() => {
+          process.stdout.write("\x1b[2J\x1b[H");
+          setScreen("list");
+        }}
+      />
+    );
+  }
+
   if (!tree) {
     return (
       <Box padding={1}>
@@ -140,8 +165,8 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
         setScreen("create");
       }}
       onSelectWorktree={(path, branch) => {
-        onResume({ worktreePath: path, label: branch });
-        exit();
+        setSessionsTarget({ worktreePath: path, branch });
+        setScreen("sessions");
       }}
       onKillSession={onKillSession}
       onDeleteWorktree={(path, branch) => {
