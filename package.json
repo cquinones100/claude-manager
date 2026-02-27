@@ -1,0 +1,30 @@
+{
+  "name": "claude-tree-vis",
+  "version": "0.1.0",
+  "description": "Visual CLI for managing Claude Code worktrees",
+  "type": "module",
+  "bin": {
+    "claude-tree-vis": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "execa": "^9.5.2",
+    "ink": "^5.1.0",
+    "ink-select-input": "^6.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "meow": "^13.2.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@sindresorhus/tsconfig": "^6.0.0",
+    "@types/node": "^25.3.2",
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.2"
+  }
+}
