@@ -3,11 +3,12 @@ import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 
 type CreateWorktreeProps = {
+  parentBranch: string;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 };
 
-export function CreateWorktree({ onSubmit, onCancel }: CreateWorktreeProps) {
+export function CreateWorktree({ parentBranch, onSubmit, onCancel }: CreateWorktreeProps) {
   const [name, setName] = useState("");
 
   useInput((_input, key) => {
@@ -20,6 +21,7 @@ export function CreateWorktree({ onSubmit, onCancel }: CreateWorktreeProps) {
     <Box flexDirection="column" padding={1}>
       <Box marginBottom={1}>
         <Text bold>Create new worktree</Text>
+        <Text dimColor>  from {parentBranch}</Text>
       </Box>
       <Box>
         <Text>Name: </Text>

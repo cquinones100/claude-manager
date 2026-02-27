@@ -16,3 +16,8 @@ export type ResumeTarget = {
   worktreePath: string;
   label: string;
 };
+
+export type TreeNode = {
+  worktree: Worktree;
+  children: TreeNode[];
+};

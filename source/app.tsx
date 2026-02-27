@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
-import type { AppScreen, CreateResult, ResumeTarget, Worktree } from "./types.js";
-import { getRepoRoot, listWorktrees, createWorktree } from "./git/worktree.js";
+import type { AppScreen, CreateResult, ResumeTarget, TreeNode } from "./types.js";
+import { getRepoRoot, listWorktrees, createWorktree, buildWorktreeTree } from "./git/worktree.js";
 import { WorktreeList } from "./components/worktree-list.js";
 import { CreateWorktree } from "./components/create-worktree.js";
 import { StatusMessage } from "./components/status-message.js";
@@ -16,11 +16,12 @@ type AppProps = {
 export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
   const { exit } = useApp();
   const [screen, setScreen] = useState<AppScreen>("list");
-  const [worktrees, setWorktrees] = useState<Worktree[]>([]);
+  const [tree, setTree] = useState<TreeNode | null>(null);
   const [repoRoot, setRepoRoot] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<CreateResult>({ success: false, message: "" });
+  const [parentBranch, setParentBranch] = useState<string>("");
 
   useInput((input) => {
     if (screen === "list" && input === "q") {
@@ -32,7 +33,7 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
     setLoading(true);
     try {
       const trees = await listWorktrees();
-      setWorktrees(trees);
+      setTree(await buildWorktreeTree(trees));
     } catch {
       setError("Failed to list worktrees.");
     }
@@ -45,7 +46,7 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
         const root = await getRepoRoot();
         setRepoRoot(root);
         const trees = await listWorktrees();
-        setWorktrees(trees);
+        setTree(await buildWorktreeTree(trees));
       } catch {
         setError("Not inside a git repository.");
         exit();
@@ -78,8 +79,9 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
   if (screen === "create") {
     return (
       <CreateWorktree
+        parentBranch={parentBranch}
         onSubmit={async (name) => {
-          const createResult = await createWorktree(name, repoRoot);
+          const createResult = await createWorktree(name, repoRoot, parentBranch);
           setResult(createResult);
           setScreen("result");
         }}
@@ -100,11 +102,24 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
     );
   }
 
+  if (!tree) {
+    return (
+      <Box padding={1}>
+        <Text>
+          <Spinner type="dots" /> Loading worktrees…
+        </Text>
+      </Box>
+    );
+  }
+
   return (
     <WorktreeList
-      worktrees={worktrees}
+      tree={tree}
       activeSessionIds={activeSessionIds}
-      onCreateNew={() => setScreen("create")}
+      onCreateNew={(branch) => {
+        setParentBranch(branch);
+        setScreen("create");
+      }}
       onSelectWorktree={(path, branch) => {
         onResume({ worktreePath: path, label: branch });
         exit();
