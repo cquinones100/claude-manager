@@ -49,17 +49,6 @@ type SessionCardProps = {
   previewOffset: number;
 };
 
-// Card chrome: 2 border lines + 2 header lines (title + metadata)
-const CARD_CHROME_LINES = 4;
-// Each preview entry takes 1 line of text + 1 line of spacing (except the last)
-const LINES_PER_ENTRY = 2;
-
-function visibleEntryCount(cardHeight: number): number {
-  const contentLines = Math.max(0, cardHeight - CARD_CHROME_LINES);
-  // N entries take N + (N-1) lines = 2N - 1, so N = floor((lines + 1) / 2)
-  return Math.max(1, Math.floor((contentLines + 1) / LINES_PER_ENTRY));
-}
-
 const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, isActive, width, height, previewOffset }: SessionCardProps) {
   const [waitingPulse, setWaitingPulse] = useState(false);
   const isWaiting = session.status === "waiting";
@@ -75,13 +64,12 @@ const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, 
 
   const borderColor = isSelected ? "cyan" : isPulsing ? "green" : waitingPulse ? "yellow" : "gray";
 
-  const visible = visibleEntryCount(height);
-  const total = session.preview.length;
-  // Default (offset -1): pin to the end of the conversation
-  const startIdx = previewOffset < 0
-    ? Math.max(0, total - visible)
-    : Math.min(previewOffset, Math.max(0, total - visible));
-  const visibleEntries = session.preview.slice(startIdx, startIdx + visible);
+  const pinnedToEnd = previewOffset < 0;
+  // Pinned: render all entries, flex-end pins latest to bottom, overflow clips old at top
+  // Scrolled: render from offset, flex-start shows from scroll position, overflow clips at bottom
+  const visibleEntries = pinnedToEnd
+    ? session.preview
+    : session.preview.slice(previewOffset);
 
   return (
     <Box
@@ -109,14 +97,35 @@ const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, 
           ].filter(Boolean).join(" · ")}
         </Text>
       </Box>
-      <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        {visibleEntries.map((line, i) => (
-          <Box key={startIdx + i} marginBottom={i < visibleEntries.length - 1 ? 1 : 0}>
-            <Text color={line.label === "User" ? "yellow" : "blue"} dimColor={!isSelected} wrap="truncate">
-              {line.label}: {line.text}
-            </Text>
-          </Box>
-        ))}
+      <Box flexDirection="column" flexGrow={1} overflow="hidden" justifyContent={pinnedToEnd ? "flex-end" : "flex-start"}>
+        {visibleEntries.map((line, i) => {
+          const idx = pinnedToEnd ? i : previewOffset + i;
+          const isUser = line.label === "User";
+          return (
+            <Box
+              key={idx}
+              flexShrink={0}
+              marginBottom={1}
+              justifyContent={isUser ? "flex-end" : "flex-start"}
+            >
+              <Box
+                borderStyle="round"
+                borderColor={isUser ? (isSelected ? "yellow" : "gray") : (isSelected ? "blue" : "gray")}
+                paddingX={1}
+                width={`80%`}
+                justifyContent={isUser ? "flex-end" : "flex-start"}
+              >
+                <Text
+                  color={isUser ? "yellow" : "blue"}
+                  dimColor={!isSelected}
+                  wrap="wrap"
+                >
+                  {line.text}
+                </Text>
+              </Box>
+            </Box>
+          );
+        })}
       </Box>
     </Box>
   );
@@ -295,9 +304,7 @@ export function SessionList({
         const session = filtered[cursor];
         if (!session) return prev;
         const total = session.preview.length;
-        const visible = visibleEntryCount(cellHeight);
-        const maxOffset = Math.max(0, total - visible);
-        // If pinned to end, start from the end position
+        const maxOffset = Math.max(0, total - 1);
         const current = prev < 0 ? maxOffset : prev;
         return Math.max(0, current - 1);
       });
@@ -308,8 +315,7 @@ export function SessionList({
         const session = filtered[cursor];
         if (!session) return prev;
         const total = session.preview.length;
-        const visible = visibleEntryCount(cellHeight);
-        const maxOffset = Math.max(0, total - visible);
+        const maxOffset = Math.max(0, total - 1);
         if (prev < 0) return prev;
         const next = prev + 1;
         return next >= maxOffset ? -1 : next;
