@@ -312,13 +312,9 @@ export function deriveWorktreeSessions(
     }
 
     const flattenPreview = (text: string) => text.replace(/\n+/g, " ").trim();
-    const lastPrompt = group.find((e) => e.type === "prompt");
-    const lastClaudeLine = status === "waiting"
-      ? group.find((e) => e.type === "tool_use")
-      : group.find((e) => e.type === "response");
-    const preview = [lastPrompt, lastClaudeLine]
-      .filter((e): e is FeedEntry => e !== undefined)
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    const preview = [...group]
+      .reverse()
+      .filter((e) => e.type === "prompt" || e.type === "response")
       .map((e) => ({
         label: e.type === "prompt" ? "User" : "Claude",
         text: flattenPreview(e.content),

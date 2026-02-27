@@ -46,9 +46,21 @@ type SessionCardProps = {
   isActive: boolean;
   width: number;
   height: number;
+  previewOffset: number;
 };
 
-const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, isActive, width, height }: SessionCardProps) {
+// Card chrome: 2 border lines + 2 header lines (title + metadata)
+const CARD_CHROME_LINES = 4;
+// Each preview entry takes 1 line of text + 1 line of spacing (except the last)
+const LINES_PER_ENTRY = 2;
+
+function visibleEntryCount(cardHeight: number): number {
+  const contentLines = Math.max(0, cardHeight - CARD_CHROME_LINES);
+  // N entries take N + (N-1) lines = 2N - 1, so N = floor((lines + 1) / 2)
+  return Math.max(1, Math.floor((contentLines + 1) / LINES_PER_ENTRY));
+}
+
+const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, isActive, width, height, previewOffset }: SessionCardProps) {
   const [waitingPulse, setWaitingPulse] = useState(false);
   const isWaiting = session.status === "waiting";
 
@@ -62,6 +74,14 @@ const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, 
   }, [isWaiting]);
 
   const borderColor = isSelected ? "cyan" : isPulsing ? "green" : waitingPulse ? "yellow" : "gray";
+
+  const visible = visibleEntryCount(height);
+  const total = session.preview.length;
+  // Default (offset -1): pin to the end of the conversation
+  const startIdx = previewOffset < 0
+    ? Math.max(0, total - visible)
+    : Math.min(previewOffset, Math.max(0, total - visible));
+  const visibleEntries = session.preview.slice(startIdx, startIdx + visible);
 
   return (
     <Box
@@ -90,10 +110,12 @@ const SessionCard = memo(function SessionCard({ session, isSelected, isPulsing, 
         </Text>
       </Box>
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        {session.preview.map((line, i) => (
-          <Text key={i} color={line.label === "User" ? "yellow" : "blue"} dimColor={!isSelected}>
-            {line.label}: {line.text}
-          </Text>
+        {visibleEntries.map((line, i) => (
+          <Box key={startIdx + i} marginBottom={i < visibleEntries.length - 1 ? 1 : 0}>
+            <Text color={line.label === "User" ? "yellow" : "blue"} dimColor={!isSelected} wrap="truncate">
+              {line.label}: {line.text}
+            </Text>
+          </Box>
         ))}
       </Box>
     </Box>
@@ -147,6 +169,7 @@ export function SessionList({
   const [cursor, setCursor] = useState(0);
   const [filter, setFilter] = useState<SessionFilter>("active");
   const [pulsingIds, setPulsingIds] = useState<Set<string>>(new Set());
+  const [previewOffset, setPreviewOffset] = useState(-1);
   const prevCountsRef = useRef<Map<string, number>>(new Map());
   const loadingRef = useRef(false);
 
@@ -231,6 +254,11 @@ export function SessionList({
   const cursorRow = Math.floor(cursor / COLS);
   const scrollRow = Math.max(0, Math.min(cursorRow - Math.floor(ROWS / 2), totalRows - ROWS));
 
+  const moveCursor = (next: number) => {
+    setCursor(next);
+    setPreviewOffset(-1);
+  };
+
   useInput((input, key) => {
     if (key.escape) {
       onBack();
@@ -242,24 +270,52 @@ export function SessionList({
     }
     if (input === "f") {
       setFilter((f) => (f === "active" ? "all" : "active"));
-      setCursor(0);
+      moveCursor(0);
       return;
     }
 
     if (filtered.length === 0) return;
 
     if (key.leftArrow) {
-      setCursor((c) => Math.max(0, c - 1));
+      moveCursor(Math.max(0, cursor - 1));
     }
     if (key.rightArrow) {
-      setCursor((c) => Math.min(filtered.length - 1, c + 1));
+      moveCursor(Math.min(filtered.length - 1, cursor + 1));
     }
     if (key.upArrow) {
-      setCursor((c) => Math.max(0, c - COLS));
+      moveCursor(Math.max(0, cursor - COLS));
     }
     if (key.downArrow) {
-      setCursor((c) => Math.min(filtered.length - 1, c + COLS));
+      moveCursor(Math.min(filtered.length - 1, cursor + COLS));
     }
+
+    // Shift+K: scroll preview up (older entries)
+    if (input === "K") {
+      setPreviewOffset((prev) => {
+        const session = filtered[cursor];
+        if (!session) return prev;
+        const total = session.preview.length;
+        const visible = visibleEntryCount(cellHeight);
+        const maxOffset = Math.max(0, total - visible);
+        // If pinned to end, start from the end position
+        const current = prev < 0 ? maxOffset : prev;
+        return Math.max(0, current - 1);
+      });
+    }
+    // Shift+J: scroll preview down (newer entries)
+    if (input === "J") {
+      setPreviewOffset((prev) => {
+        const session = filtered[cursor];
+        if (!session) return prev;
+        const total = session.preview.length;
+        const visible = visibleEntryCount(cellHeight);
+        const maxOffset = Math.max(0, total - visible);
+        if (prev < 0) return prev;
+        const next = prev + 1;
+        return next >= maxOffset ? -1 : next;
+      });
+    }
+
     if (key.return) {
       const session = filtered[cursor];
       if (session) onResume(session.sessionId);
@@ -330,6 +386,7 @@ export function SessionList({
                     isActive={activeSessionIds.has(session.sessionId)}
                     width={cellWidth}
                     height={cellHeight}
+                    previewOffset={globalIdx === cursor ? previewOffset : -1}
                   />
                 );
               })}
@@ -345,6 +402,7 @@ export function SessionList({
       </Box>
       <Box gap={2}>
         <Shortcut keyName="←↑↓→" description="navigate" />
+        <Shortcut keyName="J/K" description="scroll preview" />
         <Shortcut keyName="enter" description="resume" />
         <Shortcut keyName="n" description="new session" />
         <Shortcut keyName="f" description={filter === "active" ? "show all" : "active only"} />
