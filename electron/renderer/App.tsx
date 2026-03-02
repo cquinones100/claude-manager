@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./api";
+import { ProjectGrid } from "./components/ProjectGrid";
 import { WorktreeGrid } from "./components/WorktreeGrid";
 import { SessionGrid } from "./components/SessionGrid";
 import { CreateWorktreeModal } from "./components/CreateWorktreeModal";
@@ -35,7 +36,16 @@ type SessionSummary = {
     | undefined;
 };
 
+type ProjectInfo = {
+  repoRoot: string;
+  displayName: string;
+  displayPath: string;
+  sessionCount: number;
+  lastActivityAt: string;
+};
+
 type Screen =
+  | { kind: "projects" }
   | { kind: "worktrees" }
   | {
       kind: "sessions";
@@ -51,20 +61,21 @@ type Screen =
   | { kind: "create"; parentPath: string; parentBranch: string };
 
 export function App() {
-  const [screen, setScreen] = useState<Screen>({ kind: "worktrees" });
+  const [screen, setScreen] = useState<Screen>({ kind: "projects" });
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [selectedRepoRoot, setSelectedRepoRoot] = useState<string | null>(null);
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [repoRoot, setRepoRoot] = useState("");
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadWorktrees = useCallback(async () => {
+  const loadProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.listWorktrees();
-      setTree(result.tree);
-      setRepoRoot(result.repoRoot);
+      const result = await api.listProjects();
+      setProjects(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -72,8 +83,30 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    loadWorktrees();
-  }, [loadWorktrees]);
+    loadProjects();
+  }, [loadProjects]);
+
+  const loadWorktrees = useCallback(async (repoRootOverride?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.listWorktrees(repoRootOverride ?? selectedRepoRoot ?? undefined);
+      setTree(result.tree);
+      setRepoRoot(result.repoRoot);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+    setLoading(false);
+  }, [selectedRepoRoot]);
+
+  const handleSelectProject = useCallback(
+    (project: ProjectInfo) => {
+      setSelectedRepoRoot(project.repoRoot);
+      setScreen({ kind: "worktrees" });
+      loadWorktrees(project.repoRoot);
+    },
+    [loadWorktrees],
+  );
 
   const loadSessions = useCallback(async (worktreePath: string) => {
     const result = await api.loadSessions(worktreePath);
@@ -121,10 +154,17 @@ export function App() {
     }
   }, [screen, loadSessions]);
 
-  const handleBack = useCallback(() => {
+  const handleBackToWorktrees = useCallback(() => {
     setScreen({ kind: "worktrees" });
     loadWorktrees();
   }, [loadWorktrees]);
+
+  const handleBackToProjects = useCallback(() => {
+    setScreen({ kind: "projects" });
+    setSelectedRepoRoot(null);
+    setTree(null);
+    loadProjects();
+  }, [loadProjects]);
 
   const handleOpenCreate = useCallback(
     (parentPath: string, parentBranch: string) => {
@@ -157,10 +197,17 @@ export function App() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="text-red-400 text-lg mb-2">Failed to load worktrees</div>
+          <div className="text-red-400 text-lg mb-2">Something went wrong</div>
           <div className="text-zinc-500 text-sm max-w-md">{error}</div>
           <button
-            onClick={loadWorktrees}
+            onClick={() => {
+              setError(null);
+              if (selectedRepoRoot) {
+                loadWorktrees();
+              } else {
+                loadProjects();
+              }
+            }}
             className="mt-4 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded"
           >
             Retry
@@ -170,7 +217,15 @@ export function App() {
     );
   }
 
-  if (loading && !tree) {
+  if (loading && screen.kind === "projects" && projects.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-zinc-500 text-lg">Loading projects...</div>
+      </div>
+    );
+  }
+
+  if (loading && screen.kind === "worktrees" && !tree) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-zinc-500 text-lg">Loading worktrees...</div>
@@ -179,6 +234,13 @@ export function App() {
   }
 
   switch (screen.kind) {
+    case "projects":
+      return (
+        <ProjectGrid
+          projects={projects}
+          onSelect={handleSelectProject}
+        />
+      );
     case "worktrees":
       return (
         <WorktreeGrid
@@ -187,6 +249,7 @@ export function App() {
           onSelect={handleSelectWorktree}
           onCreate={handleOpenCreate}
           onDelete={handleDelete}
+          onBack={handleBackToProjects}
         />
       );
     case "sessions":
@@ -206,7 +269,7 @@ export function App() {
           onNewSession={() =>
             handleNewSession(screen.worktreePath, screen.branch)
           }
-          onBack={handleBack}
+          onBack={handleBackToWorktrees}
         />
       );
     case "terminal":

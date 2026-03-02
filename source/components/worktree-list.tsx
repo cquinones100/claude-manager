@@ -235,6 +235,7 @@ export function WorktreeList({
         <Shortcut keyName="n" description="create child" />
         {highlightedItem && !highlightedItem.isRoot && <Shortcut keyName="x" description="delete" />}
         {highlightedIsActive && <Shortcut keyName="del" description="kill session" />}
+        <Shortcut keyName="esc" description="back" />
         <Shortcut keyName="q" description="quit" />
       </Box>
     </Box>

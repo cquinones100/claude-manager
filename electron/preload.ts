@@ -1,8 +1,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 const api = {
+  // Project operations
+  listProjects: () => ipcRenderer.invoke("projects:list"),
+
   // Worktree operations
-  listWorktrees: () => ipcRenderer.invoke("worktrees:list"),
+  listWorktrees: (repoRoot?: string) => ipcRenderer.invoke("worktrees:list", repoRoot),
   createWorktree: (name: string, parentPath: string) =>
     ipcRenderer.invoke("worktrees:create", name, parentPath),
   deleteWorktree: (path: string, branch: string) =>

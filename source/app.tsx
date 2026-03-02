@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import Spinner from "ink-spinner";
-import type { AppScreen, CreateResult, ResumeTarget, TreeNode } from "./types.js";
+import type { AppScreen, CreateResult, ResumeTarget, TreeNode, ProjectInfo } from "./types.js";
 import { getRepoRoot, listWorktrees, createWorktree, deleteWorktree, buildWorktreeTree } from "./git/worktree.js";
 import { WorktreeList } from "./components/worktree-list.js";
 import { CreateWorktree } from "./components/create-worktree.js";
 import { DeleteConfirm } from "./components/delete-confirm.js";
 import { StatusMessage } from "./components/status-message.js";
 import { SessionList } from "./components/session-list.js";
+import { ProjectList } from "./components/project-list.js";
 
 type AppProps = {
   onResume: (target: ResumeTarget) => void;
@@ -17,26 +18,30 @@ type AppProps = {
 
 export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
   const { exit } = useApp();
-  const [screen, setScreen] = useState<AppScreen>("list");
+  const [screen, setScreen] = useState<AppScreen>("projects");
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [repoRoot, setRepoRoot] = useState<string>("");
   const [error, setError] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CreateResult>({ success: false, message: "" });
   const [parentBranch, setParentBranch] = useState<string>("");
   const [deleteTarget, setDeleteTarget] = useState<{ path: string; branch: string }>({ path: "", branch: "" });
   const [sessionsTarget, setSessionsTarget] = useState<{ worktreePath: string; branch: string }>({ worktreePath: "", branch: "" });
-
-  useInput((input) => {
+  useInput((input, key) => {
     if (screen === "list" && input === "q") {
       exit();
     }
+    if (screen === "list" && key.escape) {
+      process.stdout.write("\x1b[2J\x1b[H");
+      setScreen("projects");
+      setTree(null);
+    }
   });
 
-  const loadWorktrees = async () => {
+  const loadWorktrees = async (cwd?: string) => {
     setLoading(true);
     try {
-      const trees = await listWorktrees();
+      const trees = await listWorktrees(cwd);
       setTree(await buildWorktreeTree(trees));
     } catch {
       setError("Failed to list worktrees.");
@@ -44,23 +49,30 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const root = await getRepoRoot();
-        setRepoRoot(root);
-        const trees = await listWorktrees();
-        setTree(await buildWorktreeTree(trees));
-      } catch {
-        setError("Not inside a git repository.");
-        exit();
-        return;
-      }
-      setLoading(false);
-    };
+  const handleProjectSelect = async (project: ProjectInfo) => {
+    setRepoRoot(project.repoRoot);
+    process.chdir(project.repoRoot);
+    setLoading(true);
+    setScreen("list");
+    try {
+      const root = await getRepoRoot(project.repoRoot);
+      setRepoRoot(root);
+      const trees = await listWorktrees(project.repoRoot);
+      setTree(await buildWorktreeTree(trees));
+    } catch {
+      setError("Failed to load worktrees for this project.");
+    }
+    setLoading(false);
+  };
 
-    init();
-  }, []);
+  if (screen === "projects") {
+    return (
+      <ProjectList
+        onSelect={handleProjectSelect}
+        onQuit={() => exit()}
+      />
+    );
+  }
 
   if (error) {
     return (

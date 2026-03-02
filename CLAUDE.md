@@ -19,10 +19,11 @@ Interactive CLI and Electron app for managing Claude Code worktrees with tmux-st
   - `cli.tsx` — CLI entry point with render loop
   - `app.tsx` — CLI state machine routing between screens
   - `pty-manager.ts` — CLI PTY session manager (spawn, attach/detach, kill)
-  - `types.ts` — Shared type aliases (Worktree, AppScreen, CreateResult, ResumeTarget)
+  - `types.ts` — Shared type aliases (Worktree, ProjectInfo, AppScreen, CreateResult, ResumeTarget)
   - `sessions.ts` — Session JSONL parsing and summaries
+  - `projects.ts` — Project discovery from ~/.claude/projects/ session data
   - `git/worktree.ts` — Git worktree operations (getRepoRoot, listWorktrees, createWorktree)
-  - `components/` — Ink UI components (worktree-list, session-list, create-worktree, etc.)
+  - `components/` — Ink UI components (project-list, worktree-list, session-list, create-worktree, etc.)
 - `electron/` — Electron app source
   - `main.ts` — Main process (BrowserWindow, IPC handlers)
   - `preload.ts` — contextBridge IPC bridge
@@ -30,14 +31,14 @@ Interactive CLI and Electron app for managing Claude Code worktrees with tmux-st
   - `renderer/` — React DOM + Tailwind renderer
     - `App.tsx` — Screen router
     - `api.ts` — Typed wrapper for preload bridge
-    - `components/` — WorktreeGrid, SessionGrid, TerminalView, etc.
+    - `components/` — ProjectGrid, WorktreeGrid, SessionGrid, TerminalView, etc.
 - `dist/` — CLI compiled output (gitignored)
 - `out/` — Electron compiled output (gitignored)
 
 ## Architecture
 
 ### CLI
-The CLI uses a render loop pattern: a `while` loop in `cli.tsx` alternates between rendering the Ink UI and attaching to a raw PTY session. When a user selects a worktree, the Ink app exits and hands control to the PTY manager, which spawns/reattaches a `claude` process. Ctrl+X detaches back to the Ink UI.
+The app starts with a projects screen that discovers repos from `~/.claude/projects/` session data. Selecting a project navigates to the worktree list for that repo. The CLI uses a render loop pattern: a `while` loop in `cli.tsx` alternates between rendering the Ink UI and attaching to a raw PTY session. When a user selects a worktree, the Ink app exits and hands control to the PTY manager, which spawns/reattaches a `claude` process. Ctrl+X detaches back to the Ink UI.
 
 ### Electron
 The Electron app uses IPC to bridge between the main process (node-pty, git operations, session parsing) and the renderer (React + Tailwind UI, xterm.js terminal). The main process imports shared modules from `source/` for git and session logic. PTY data flows via `webContents.send` to xterm.js in the renderer.
@@ -45,7 +46,7 @@ The Electron app uses IPC to bridge between the main process (node-pty, git oper
 ## Commands
 
 - `pnpm build` — Compile CLI TypeScript to `dist/`
-- `node dist/cli.js` — Run the CLI (must be inside a git repo)
+- `node dist/cli.js` — Run the CLI (no longer requires being inside a git repo)
 - `pnpm electron:dev` — Run Electron app in dev mode
 - `pnpm electron:build` — Build Electron app to `out/`
 

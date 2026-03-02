@@ -42,12 +42,14 @@ export function WorktreeGrid({
   onSelect,
   onCreate,
   onDelete,
+  onBack,
 }: {
   tree: TreeNode | null;
   repoRoot: string;
   onSelect: (path: string, branch: string) => void;
   onCreate: (parentPath: string, parentBranch: string) => void;
   onDelete: (path: string, branch: string) => void;
+  onBack?: () => void;
 }) {
   if (!tree) return null;
 
@@ -55,7 +57,7 @@ export function WorktreeGrid({
 
   return (
     <div className="h-screen flex flex-col">
-      <TitleBar title="Worktrees" />
+      <TitleBar title="Worktrees" onBack={onBack} />
       <div className="flex-1 overflow-auto p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {items.map((item) => (

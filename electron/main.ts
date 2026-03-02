@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { ElectronPtyManager } from "./pty-manager";
 import {
@@ -12,6 +12,7 @@ import {
   loadWorktreeSessions,
   deriveWorktreeSessions,
 } from "../source/sessions";
+import { listProjects } from "../source/projects";
 
 const ptyManager = new ElectronPtyManager();
 
@@ -58,10 +59,15 @@ function createWindow(): BrowserWindow {
 
 // --- IPC handlers ---
 
-ipcMain.handle("worktrees:list", async () => {
+ipcMain.handle("projects:list", async () => {
+  return listProjects();
+});
+
+ipcMain.handle("worktrees:list", async (_event, repoRootParam?: string) => {
   try {
-    const repoRoot = await getRepoRoot();
-    const worktrees = await listWorktrees();
+    const cwd = repoRootParam || undefined;
+    const repoRoot = await getRepoRoot(cwd);
+    const worktrees = await listWorktrees(cwd);
     const tree = await buildWorktreeTree(worktrees);
     return { tree, repoRoot };
   } catch (err) {
@@ -119,22 +125,6 @@ ipcMain.handle("pty:getBuffer", async (_event, id: string) => {
 // --- App lifecycle ---
 
 app.whenReady().then(async () => {
-  // If not inside a git repo, ask the user to pick one
-  try {
-    await getRepoRoot();
-  } catch {
-    const result = await dialog.showOpenDialog({
-      title: "Select a git repository",
-      properties: ["openDirectory"],
-      message: "Claude Tree Vis needs to run inside a git repository.",
-    });
-    if (result.canceled || result.filePaths.length === 0) {
-      app.quit();
-      return;
-    }
-    process.chdir(result.filePaths[0]!);
-  }
-
   createWindow();
 
   app.on("activate", () => {

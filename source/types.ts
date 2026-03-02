@@ -5,7 +5,15 @@ export type Worktree = {
   isBare: boolean;
 };
 
-export type AppScreen = "list" | "create" | "result" | "delete-confirm" | "sessions";
+export type AppScreen = "projects" | "list" | "create" | "result" | "delete-confirm" | "sessions";
+
+export type ProjectInfo = {
+  repoRoot: string;
+  displayName: string;
+  displayPath: string;
+  sessionCount: number;
+  lastActivityAt: Date;
+};
 
 export type CreateResult = {
   success: boolean;

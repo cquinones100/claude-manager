@@ -23,7 +23,7 @@ pnpm build
 node dist/cli.js
 ```
 
-Must be run inside a git repo.
+Can be run from anywhere — the app starts with a project picker.
 
 ### Electron
 
@@ -31,23 +31,24 @@ Must be run inside a git repo.
 pnpm electron:dev
 ```
 
-If not run from a git repo, a folder picker dialog opens.
-
 ## CLI Usage
 
-- **List screen** — Shows all worktrees as a card grid. Active sessions are marked with a green indicator.
+- **Projects screen** — Lists all projects that have Claude session data in `~/.claude/projects/`. Select one to enter.
+- **Worktrees screen** — Shows all worktrees as a card grid. Active sessions are marked with a green indicator.
 - **Sessions screen** — Select a worktree to see its Claude sessions with conversation previews.
 - **Enter** — Resume a session (full-screen Claude Code PTY).
 - **Ctrl+X** — Detaches from the current session and returns to the home screen.
+- **Esc** — Go back to the previous screen.
 - **`n`** — Create a new worktree or session.
 - **`x`** — Delete a worktree.
 - **`q`** — Quit.
 
 ## Electron Usage
 
+- **Projects grid** — Click a project card to view its worktrees.
 - **Worktree grid** — Click a worktree card to view its sessions. Hover for create/delete buttons.
 - **Session grid** — Click a session to open it in an embedded terminal (xterm.js). Live session status updates.
-- **Home button** — Detach from terminal back to sessions.
+- **Back button** — Navigate up through the screen hierarchy.
 
 ## Project Structure
 

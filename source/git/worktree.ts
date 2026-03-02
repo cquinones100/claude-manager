@@ -3,13 +3,13 @@ import type { Worktree, CreateResult, TreeNode } from "../types.js";
 
 const WORKTREE_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
-export async function getRepoRoot(): Promise<string> {
-  const { stdout } = await execa("git", ["rev-parse", "--show-toplevel"]);
+export async function getRepoRoot(cwd?: string): Promise<string> {
+  const { stdout } = await execa("git", ["rev-parse", "--show-toplevel"], cwd ? { cwd } : {});
   return stdout.trim();
 }
 
-export async function listWorktrees(): Promise<Worktree[]> {
-  const { stdout } = await execa("git", ["worktree", "list", "--porcelain"]);
+export async function listWorktrees(cwd?: string): Promise<Worktree[]> {
+  const { stdout } = await execa("git", ["worktree", "list", "--porcelain"], cwd ? { cwd } : {});
 
   if (!stdout.trim()) {
     return [];
