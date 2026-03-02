@@ -6,14 +6,20 @@
   "bin": {
     "claude-tree-vis": "dist/cli.js"
   },
+  "main": "out/main/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "tsc && node dist/cli.js"
+    "start": "tsc && node dist/cli.js",
+    "electron:dev": "electron-vite dev",
+    "electron:build": "electron-vite build",
+    "electron:preview": "electron-vite preview"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "execa": "^9.5.2",
     "ink": "^5.1.0",
     "ink-select-input": "^6.0.0",
@@ -21,15 +27,26 @@
     "ink-text-input": "^6.0.0",
     "meow": "^13.2.0",
     "node-pty": "^1.1.0",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.2.1"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["node-pty"]
+    "onlyBuiltDependencies": [
+      "node-pty",
+      "electron",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@sindresorhus/tsconfig": "^6.0.0",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^25.3.2",
     "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^5.1.4",
+    "electron": "^40.6.1",
+    "electron-vite": "^5.0.0",
     "typescript": "^5.7.2"
   }
 }

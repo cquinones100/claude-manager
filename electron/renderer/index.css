@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
