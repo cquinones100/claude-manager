@@ -56,3 +56,4 @@ The Electron app uses IPC to bridge between the main process (node-pty, git oper
 - Collection methods over for loops
 - async/await over .then
 - Prefer inlining, extract only when complex
+- Every new feature must be implemented in both the CLI and Electron apps to maintain parity
