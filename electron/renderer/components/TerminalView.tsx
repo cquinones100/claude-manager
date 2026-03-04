@@ -24,13 +24,12 @@ export function TerminalView({
     if (!containerRef.current || spawnedRef.current) return;
     spawnedRef.current = true;
 
-    // Check if there's already a running PTY for this worktree
-    const existingPtyId = await api.ptyFindByWorktree(worktreePath);
-    const ptyId =
-      existingPtyId ??
-      (sessionId
-        ? `${worktreePath}:${sessionId}`
-        : `${worktreePath}:new-${Date.now()}`);
+    // Deterministic PTY ID when resuming a specific session so we can
+    // reattach to it later. For new sessions, fall back to worktree lookup
+    // (reattach to a running "new" PTY) or mint a fresh ID.
+    const ptyId = sessionId
+      ? `${worktreePath}:${sessionId}`
+      : (await api.ptyFindByWorktree(worktreePath)) ?? `${worktreePath}:new-${Date.now()}`;
     ptyIdRef.current = ptyId;
 
     const term = new Terminal({
@@ -73,7 +72,7 @@ export function TerminalView({
     const rows = term.rows;
 
     const args: string[] = [];
-    if (!existingPtyId && sessionId) {
+    if (sessionId) {
       args.push("--resume", sessionId);
     }
 
