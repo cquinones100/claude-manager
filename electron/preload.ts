@@ -16,8 +16,8 @@ const api = {
     ipcRenderer.invoke("sessions:load", worktreePath),
 
   // PTY operations
-  ptySpawn: (id: string, args: string[], cols: number, rows: number) =>
-    ipcRenderer.invoke("pty:spawn", id, args, cols, rows),
+  ptySpawn: (id: string, args: string[], cols: number, rows: number, cwd?: string) =>
+    ipcRenderer.invoke("pty:spawn", id, args, cols, rows, cwd),
   ptyWrite: (id: string, data: string) =>
     ipcRenderer.invoke("pty:write", id, data),
   ptyResize: (id: string, cols: number, rows: number) =>

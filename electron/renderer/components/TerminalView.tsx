@@ -19,7 +19,10 @@ export function TerminalView({
   const fitRef = useRef<FitAddon | null>(null);
   const spawnedRef = useRef(false);
 
-  const ptyId = sessionId ? `${worktreePath}:${sessionId}` : worktreePath;
+  const ptyIdRef = useRef(
+    sessionId ? `${worktreePath}:${sessionId}` : `${worktreePath}:new-${Date.now()}`,
+  );
+  const ptyId = ptyIdRef.current;
 
   const setupTerminal = useCallback(async () => {
     if (!containerRef.current || spawnedRef.current) return;
@@ -69,7 +72,7 @@ export function TerminalView({
       args.push("--resume", sessionId);
     }
 
-    await api.ptySpawn(ptyId, args, cols, rows);
+    await api.ptySpawn(ptyId, args, cols, rows, worktreePath);
 
     // Replay any buffered output
     const buf = await api.ptyGetBuffer(ptyId);

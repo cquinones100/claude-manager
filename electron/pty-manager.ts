@@ -20,7 +20,7 @@ export class ElectronPtyManager {
     this.window = window;
   }
 
-  spawn(id: string, args: string[] = [], cols = 80, rows = 24): void {
+  spawn(id: string, args: string[] = [], cols = 80, rows = 24, cwd?: string): void {
     if (this.processes.has(id)) return;
 
     if (!this.claudePath) {
@@ -29,25 +29,24 @@ export class ElectronPtyManager {
       }).trim();
     }
 
-    const cwd = existsSync(id) ? id : process.cwd();
+    const workdir = cwd && existsSync(cwd) ? cwd : existsSync(id) ? id : process.cwd();
 
     const instance = nodePty.spawn(this.claudePath, args, {
       name: "xterm-256color",
       cols,
       rows,
-      cwd,
+      cwd: workdir,
     });
 
     const entry: PtyEntry = { instance, alive: true, outputBuffer: "" };
 
     instance.onData((data) => {
+      entry.outputBuffer += data;
+      if (entry.outputBuffer.length > MAX_BUFFER) {
+        entry.outputBuffer = entry.outputBuffer.slice(-MAX_BUFFER);
+      }
       if (this.window && !this.window.isDestroyed()) {
         this.window.webContents.send("pty:data", id, data);
-      } else {
-        entry.outputBuffer += data;
-        if (entry.outputBuffer.length > MAX_BUFFER) {
-          entry.outputBuffer = entry.outputBuffer.slice(-MAX_BUFFER);
-        }
       }
     });
 
