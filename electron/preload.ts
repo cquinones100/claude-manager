@@ -24,6 +24,7 @@ const api = {
     ipcRenderer.invoke("pty:resize", id, cols, rows),
   ptyKill: (id: string) => ipcRenderer.invoke("pty:kill", id),
   ptyGetBuffer: (id: string) => ipcRenderer.invoke("pty:getBuffer", id),
+  ptyListActive: () => ipcRenderer.invoke("pty:listActive") as Promise<string[]>,
 
   // PTY events (main → renderer)
   onPtyData: (callback: (id: string, data: string) => void) => {

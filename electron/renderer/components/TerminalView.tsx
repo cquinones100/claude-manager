@@ -122,7 +122,7 @@ export function TerminalView({
   }, [setupTerminal]);
 
   return (
-    <div className="h-screen flex flex-col bg-[#09090b]">
+    <div className="h-full flex flex-col bg-[#09090b]">
       <div className="flex items-center justify-between px-4 pt-10 pb-2 border-b border-zinc-800 bg-zinc-900 app-drag">
         <div className="flex items-center gap-2">
           <button

@@ -9,6 +9,8 @@ import { DeleteConfirm } from "./components/delete-confirm.js";
 import { StatusMessage } from "./components/status-message.js";
 import { SessionList } from "./components/session-list.js";
 import { ProjectList } from "./components/project-list.js";
+import { Layout } from "./components/layout.js";
+import { basename } from "node:path";
 
 type AppProps = {
   onResume: (target: ResumeTarget) => void;
@@ -74,117 +76,135 @@ export function App({ onResume, activeSessionIds, onKillSession }: AppProps) {
     );
   }
 
-  if (error) {
-    return (
-      <Box padding={1}>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
-  }
+  const projectName = repoRoot ? basename(repoRoot) : "Project";
+  const currentWorktreePath = screen === "sessions" ? sessionsTarget.worktreePath : undefined;
 
-  if (loading) {
-    return (
-      <Box padding={1}>
-        <Text>
-          <Spinner type="dots" /> Loading worktrees…
-        </Text>
-      </Box>
-    );
-  }
+  const renderContent = (contentWidth: number) => {
+    if (error) {
+      return (
+        <Box padding={1}>
+          <Text color="red">Error: {error}</Text>
+        </Box>
+      );
+    }
 
-  if (screen === "create") {
-    return (
-      <CreateWorktree
-        parentBranch={parentBranch}
-        onSubmit={async (name) => {
-          const createResult = await createWorktree(name, repoRoot, parentBranch);
-          setResult(createResult);
-          setScreen("result");
-        }}
-        onCancel={() => setScreen("list")}
-      />
-    );
-  }
+    if (loading) {
+      return (
+        <Box padding={1}>
+          <Text>
+            <Spinner type="dots" /> Loading worktrees…
+          </Text>
+        </Box>
+      );
+    }
 
-  if (screen === "delete-confirm") {
-    return (
-      <DeleteConfirm
-        branch={deleteTarget.branch}
-        onConfirm={async () => {
-          if (activeSessionIds.has(deleteTarget.path)) {
-            onKillSession(deleteTarget.path);
-          }
-          const deleteResult = await deleteWorktree(deleteTarget.path, deleteTarget.branch);
-          setResult(deleteResult);
-          setScreen("result");
-        }}
-        onCancel={() => setScreen("list")}
-      />
-    );
-  }
+    if (screen === "create") {
+      return (
+        <CreateWorktree
+          parentBranch={parentBranch}
+          onSubmit={async (name) => {
+            const createResult = await createWorktree(name, repoRoot, parentBranch);
+            setResult(createResult);
+            setScreen("result");
+          }}
+          onCancel={() => setScreen("list")}
+        />
+      );
+    }
 
-  if (screen === "result") {
-    return (
-      <StatusMessage
-        result={result}
-        onDismiss={async () => {
-          await loadWorktrees();
-          setScreen("list");
-        }}
-      />
-    );
-  }
+    if (screen === "delete-confirm") {
+      return (
+        <DeleteConfirm
+          branch={deleteTarget.branch}
+          onConfirm={async () => {
+            if (activeSessionIds.has(deleteTarget.path)) {
+              onKillSession(deleteTarget.path);
+            }
+            const deleteResult = await deleteWorktree(deleteTarget.path, deleteTarget.branch);
+            setResult(deleteResult);
+            setScreen("result");
+          }}
+          onCancel={() => setScreen("list")}
+        />
+      );
+    }
 
-  if (screen === "sessions") {
+    if (screen === "result") {
+      return (
+        <StatusMessage
+          result={result}
+          onDismiss={async () => {
+            await loadWorktrees();
+            setScreen("list");
+          }}
+        />
+      );
+    }
+
+    if (screen === "sessions") {
+      return (
+        <SessionList
+          worktreePath={sessionsTarget.worktreePath}
+          worktreeLabel={sessionsTarget.branch}
+          activeSessionIds={activeSessionIds}
+          onKillSession={onKillSession}
+          onResume={(sessionId) => {
+            onResume({
+              worktreePath: sessionsTarget.worktreePath,
+              label: sessionsTarget.branch,
+              sessionId,
+            });
+            exit();
+          }}
+          onBack={() => {
+            process.stdout.write("\x1b[2J\x1b[H");
+            setScreen("list");
+          }}
+          availableWidth={contentWidth}
+        />
+      );
+    }
+
+    if (!tree) {
+      return (
+        <Box padding={1}>
+          <Text>
+            <Spinner type="dots" /> Loading worktrees…
+          </Text>
+        </Box>
+      );
+    }
+
     return (
-      <SessionList
-        worktreePath={sessionsTarget.worktreePath}
-        worktreeLabel={sessionsTarget.branch}
+      <WorktreeList
+        tree={tree}
         activeSessionIds={activeSessionIds}
+        onCreateNew={(branch) => {
+          setParentBranch(branch);
+          setScreen("create");
+        }}
+        onSelectWorktree={(path, branch) => {
+          setSessionsTarget({ worktreePath: path, branch });
+          setScreen("sessions");
+        }}
         onKillSession={onKillSession}
-        onResume={(sessionId) => {
-          onResume({
-            worktreePath: sessionsTarget.worktreePath,
-            label: sessionsTarget.branch,
-            sessionId,
-          });
-          exit();
+        onDeleteWorktree={(path, branch) => {
+          setDeleteTarget({ path, branch });
+          setScreen("delete-confirm");
         }}
-        onBack={() => {
-          process.stdout.write("\x1b[2J\x1b[H");
-          setScreen("list");
-        }}
+        availableWidth={contentWidth}
       />
     );
-  }
-
-  if (!tree) {
-    return (
-      <Box padding={1}>
-        <Text>
-          <Spinner type="dots" /> Loading worktrees…
-        </Text>
-      </Box>
-    );
-  }
+  };
 
   return (
-    <WorktreeList
+    <Layout
+      projectName={projectName}
       tree={tree}
+      currentWorktreePath={currentWorktreePath}
       activeSessionIds={activeSessionIds}
-      onCreateNew={(branch) => {
-        setParentBranch(branch);
-        setScreen("create");
-      }}
-      onSelectWorktree={(path, branch) => {
-        setSessionsTarget({ worktreePath: path, branch });
-        setScreen("sessions");
-      }}
-      onKillSession={onKillSession}
-      onDeleteWorktree={(path, branch) => {
-        setDeleteTarget({ path, branch });
-        setScreen("delete-confirm");
-      }}
-    />
+    >
+      {renderContent}
+    </Layout>
   );
 }

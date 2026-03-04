@@ -69,7 +69,7 @@ export function SessionGrid({
   }, [onRefresh]);
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <TitleBar title={`Sessions — ${branch}`} onBack={onBack} />
       <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800">
         <button

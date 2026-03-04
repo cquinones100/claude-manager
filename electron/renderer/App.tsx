@@ -5,6 +5,7 @@ import { WorktreeGrid } from "./components/WorktreeGrid";
 import { SessionGrid } from "./components/SessionGrid";
 import { CreateWorktreeModal } from "./components/CreateWorktreeModal";
 import { TerminalView } from "./components/TerminalView";
+import { SideNav } from "./components/SideNav";
 
 type TreeNode = {
   worktree: {
@@ -69,6 +70,8 @@ export function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activePtyIds, setActivePtyIds] = useState<string[]>([]);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -85,6 +88,24 @@ export function App() {
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  // Poll active PTY ids for sidebar
+  useEffect(() => {
+    if (screen.kind === "projects") return;
+
+    const poll = async () => {
+      try {
+        const ids = await api.ptyListActive();
+        setActivePtyIds(ids);
+      } catch {
+        // ignore
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [screen.kind]);
 
   const loadWorktrees = useCallback(async (repoRootOverride?: string) => {
     setLoading(true);
@@ -193,6 +214,14 @@ export function App() {
     [loadWorktrees],
   );
 
+  const handleSidebarSelectWorktree = useCallback(
+    (path: string, branch: string) => {
+      setScreen({ kind: "sessions", worktreePath: path, branch });
+      loadSessions(path);
+    },
+    [loadSessions],
+  );
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -233,63 +262,96 @@ export function App() {
     );
   }
 
-  switch (screen.kind) {
-    case "projects":
-      return (
-        <ProjectGrid
-          projects={projects}
-          onSelect={handleSelectProject}
-        />
-      );
-    case "worktrees":
-      return (
-        <WorktreeGrid
-          tree={tree}
-          repoRoot={repoRoot}
-          onSelect={handleSelectWorktree}
-          onCreate={handleOpenCreate}
-          onDelete={handleDelete}
-          onBack={handleBackToProjects}
-        />
-      );
-    case "sessions":
-      return (
-        <SessionGrid
-          worktreePath={screen.worktreePath}
-          branch={screen.branch}
-          sessions={sessions}
-          onRefresh={() => loadSessions(screen.worktreePath)}
-          onResume={(sessionId) =>
-            handleResumeSession(
-              screen.worktreePath,
-              screen.branch,
-              sessionId,
-            )
-          }
-          onNewSession={() =>
-            handleNewSession(screen.worktreePath, screen.branch)
-          }
-          onBack={handleBackToWorktrees}
-        />
-      );
-    case "terminal":
-      return (
-        <TerminalView
-          worktreePath={screen.worktreePath}
-          label={screen.label}
-          sessionId={screen.sessionId}
-          onDetach={handleDetach}
-        />
-      );
-    case "create":
-      return (
-        <CreateWorktreeModal
-          parentBranch={screen.parentBranch}
-          onSubmit={handleCreateDone}
-          onCancel={() => {
-            setScreen({ kind: "worktrees" });
-          }}
-        />
-      );
+  // Projects screen has no sidebar
+  if (screen.kind === "projects") {
+    return (
+      <ProjectGrid
+        projects={projects}
+        onSelect={handleSelectProject}
+      />
+    );
   }
+
+  // Derive project name and current worktree path for sidebar
+  const projectName = repoRoot ? repoRoot.split("/").pop() ?? "Project" : "Project";
+  const currentWorktreePath =
+    screen.kind === "sessions" ? screen.worktreePath :
+    screen.kind === "terminal" ? screen.worktreePath :
+    undefined;
+
+  const renderContent = () => {
+    switch (screen.kind) {
+      case "worktrees":
+        return (
+          <WorktreeGrid
+            tree={tree}
+            repoRoot={repoRoot}
+            onSelect={handleSelectWorktree}
+            onCreate={handleOpenCreate}
+            onDelete={handleDelete}
+            onBack={handleBackToProjects}
+          />
+        );
+      case "sessions":
+        return (
+          <SessionGrid
+            worktreePath={screen.worktreePath}
+            branch={screen.branch}
+            sessions={sessions}
+            onRefresh={() => loadSessions(screen.worktreePath)}
+            onResume={(sessionId) =>
+              handleResumeSession(
+                screen.worktreePath,
+                screen.branch,
+                sessionId,
+              )
+            }
+            onNewSession={() =>
+              handleNewSession(screen.worktreePath, screen.branch)
+            }
+            onBack={handleBackToWorktrees}
+          />
+        );
+      case "terminal":
+        return (
+          <TerminalView
+            worktreePath={screen.worktreePath}
+            label={screen.label}
+            sessionId={screen.sessionId}
+            onDetach={handleDetach}
+          />
+        );
+      case "create":
+        return (
+          <CreateWorktreeModal
+            parentBranch={screen.parentBranch}
+            onSubmit={handleCreateDone}
+            onCancel={() => {
+              setScreen({ kind: "worktrees" });
+            }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex h-screen">
+      <SideNav
+        projectName={projectName}
+        tree={tree}
+        currentScreen={screen.kind}
+        currentWorktreePath={currentWorktreePath}
+        activePtyIds={activePtyIds}
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+        onSelectWorktree={handleSidebarSelectWorktree}
+        onBackToProjects={handleBackToProjects}
+      />
+      <div className="flex-1 min-w-0">
+        {renderContent()}
+      </div>
+    </div>
+  );
 }

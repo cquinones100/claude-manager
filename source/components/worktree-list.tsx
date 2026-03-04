@@ -17,6 +17,7 @@ type WorktreeListProps = {
   onSelectWorktree: (path: string, branch: string) => void;
   onKillSession: (id: string) => void;
   onDeleteWorktree: (path: string, branch: string) => void;
+  availableWidth: number | undefined;
 };
 
 function abbreviatePath(fullPath: string): string {
@@ -139,9 +140,11 @@ export function WorktreeList({
   onSelectWorktree,
   onKillSession,
   onDeleteWorktree,
+  availableWidth,
 }: WorktreeListProps) {
   const { width: termWidth, height: termHeight } = useTerminalSize();
-  const cellWidth = Math.floor(termWidth / COLS);
+  const effectiveWidth = availableWidth ?? termWidth;
+  const cellWidth = Math.floor(effectiveWidth / COLS);
   const cellHeight = Math.floor((termHeight - CHROME_LINES) / ROWS);
 
   const items = flattenTree(tree);

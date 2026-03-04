@@ -159,6 +159,7 @@ type SessionListProps = {
   onBack: () => void;
   activeSessionIds: Set<string>;
   onKillSession: (id: string) => void;
+  availableWidth: number | undefined;
 };
 
 export function SessionList({
@@ -168,9 +169,11 @@ export function SessionList({
   onBack,
   activeSessionIds,
   onKillSession,
+  availableWidth,
 }: SessionListProps) {
   const { width: termWidth, height: termHeight } = useTerminalSize();
-  const cellWidth = Math.floor(termWidth / COLS);
+  const effectiveWidth = availableWidth ?? termWidth;
+  const cellWidth = Math.floor(effectiveWidth / COLS);
   const cellHeight = Math.floor((termHeight - CHROME_LINES) / ROWS);
 
   const [sessions, setSessions] = useState<SessionSummary[]>([]);

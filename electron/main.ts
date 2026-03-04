@@ -122,6 +122,10 @@ ipcMain.handle("pty:getBuffer", async (_event, id: string) => {
   return ptyManager.getBuffer(id);
 });
 
+ipcMain.handle("pty:listActive", async () => {
+  return [...ptyManager.ids()];
+});
+
 // --- App lifecycle ---
 
 app.whenReady().then(async () => {
