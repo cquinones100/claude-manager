@@ -16,6 +16,8 @@ const api = {
     ipcRenderer.invoke("sessions:load", worktreePath),
 
   // PTY operations
+  ptyFindByWorktree: (worktreePath: string) =>
+    ipcRenderer.invoke("pty:findByWorktree", worktreePath) as Promise<string | null>,
   ptySpawn: (id: string, args: string[], cols: number, rows: number, cwd?: string) =>
     ipcRenderer.invoke("pty:spawn", id, args, cols, rows, cwd),
   ptyWrite: (id: string, data: string) =>

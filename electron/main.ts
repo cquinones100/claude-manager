@@ -96,6 +96,10 @@ ipcMain.handle("sessions:load", async (_event, worktreePath: string) => {
   return deriveWorktreeSessions(entries, mtimes);
 });
 
+ipcMain.handle("pty:findByWorktree", async (_event, worktreePath: string) => {
+  return ptyManager.findByWorktree(worktreePath);
+});
+
 ipcMain.handle(
   "pty:spawn",
   async (_event, id: string, args: string[], cols: number, rows: number, cwd?: string) => {
