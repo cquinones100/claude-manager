@@ -12,6 +12,31 @@ type TreeNode = {
   children: TreeNode[];
 };
 
+type SessionSummary = {
+  sessionId: string;
+  project: string;
+  cwd: string | undefined;
+  lastActivityAt: string;
+  entryCount: number;
+  preview: Array<{ label: string; text: string }>;
+  model: string | undefined;
+  gitBranch: string | undefined;
+  status: "thinking" | "waiting" | "idle";
+  pendingAction:
+    | {
+        kind: "question";
+        question: string;
+        options: Array<{ label: string; description: string }>;
+      }
+    | { kind: "tool"; description: string }
+    | undefined;
+};
+
+type ActiveSession = {
+  worktreePath: string;
+  session: SessionSummary;
+};
+
 type FlatWorktree = {
   path: string;
   branch: string;
@@ -28,15 +53,31 @@ function flattenTree(node: TreeNode, depth = 0): FlatWorktree[] {
   return items;
 }
 
+function statusBadge(status: SessionSummary["status"]) {
+  const config = {
+    thinking: { label: "Thinking", color: "bg-amber-400" },
+    waiting: { label: "Waiting", color: "bg-cyan-400" },
+    idle: { label: "Idle", color: "bg-emerald-400" },
+  }[status];
+
+  return (
+    <span className="flex items-center gap-1">
+      <span className={`w-1.5 h-1.5 rounded-full ${config.color} shrink-0`} />
+      <span className="text-[10px] text-zinc-500">{config.label}</span>
+    </span>
+  );
+}
+
 type SideNavProps = {
   projectName: string;
   tree: TreeNode | null;
   currentScreen: string;
   currentWorktreePath: string | undefined;
-  activePtyIds: string[];
+  activeSessions: ActiveSession[];
   collapsed: boolean;
   onToggle: () => void;
   onSelectWorktree: (path: string, branch: string) => void;
+  onSelectActiveSession: (worktreePath: string) => void;
   onBackToProjects: () => void;
 };
 
@@ -45,16 +86,15 @@ export function SideNav({
   tree,
   currentScreen,
   currentWorktreePath,
-  activePtyIds,
+  activeSessions,
   collapsed,
   onToggle,
   onSelectWorktree,
+  onSelectActiveSession,
   onBackToProjects,
 }: SideNavProps) {
   const worktrees = tree ? flattenTree(tree) : [];
-  const activeWorktrees = worktrees.filter((w) =>
-    activePtyIds.some((id) => id.startsWith(w.path)),
-  );
+  const activeWorktreePaths = new Set(activeSessions.map((a) => a.worktreePath));
 
   if (collapsed) {
     return (
@@ -96,7 +136,7 @@ export function SideNav({
         <div className="space-y-0.5">
           {worktrees.map((w) => {
             const isCurrent = w.path === currentWorktreePath;
-            const isActive = activePtyIds.some((id) => id.startsWith(w.path));
+            const isActive = activeWorktreePaths.has(w.path);
             return (
               <button
                 key={w.path}
@@ -117,22 +157,34 @@ export function SideNav({
           })}
         </div>
 
-        {activeWorktrees.length > 0 && (
+        {activeSessions.length > 0 && (
           <div className="mt-4">
             <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1">
               Active Sessions
             </div>
-            <div className="space-y-0.5">
-              {activeWorktrees.map((w) => (
-                <button
-                  key={w.path}
-                  onClick={() => onSelectWorktree(w.path, w.branch)}
-                  className="w-full text-left text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 px-2 py-1 rounded truncate transition-colors flex items-center gap-1.5"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  <span className="truncate">{w.branch}</span>
-                </button>
-              ))}
+            <div className="space-y-1">
+              {activeSessions.map(({ worktreePath, session }) => {
+                const lastPreview = session.preview.at(-1);
+                return (
+                  <button
+                    key={worktreePath}
+                    onClick={() => onSelectActiveSession(worktreePath)}
+                    className="w-full text-left text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 px-2 py-1.5 rounded transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate font-medium text-zinc-300">
+                        {session.sessionId.slice(0, 8)}
+                      </span>
+                      {statusBadge(session.status)}
+                    </div>
+                    {lastPreview && (
+                      <div className="text-[10px] text-zinc-500 truncate mt-0.5">
+                        {lastPreview.label}: {lastPreview.text.slice(0, 60)}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

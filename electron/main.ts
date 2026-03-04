@@ -130,6 +130,10 @@ ipcMain.handle("pty:listActive", async () => {
   return [...ptyManager.ids()];
 });
 
+ipcMain.handle("pty:activeWorktrees", async () => {
+  return ptyManager.activeWorktrees();
+});
+
 // --- App lifecycle ---
 
 app.whenReady().then(async () => {

@@ -124,4 +124,10 @@ export class ElectronPtyManager {
   ids(): Set<string> {
     return new Set(this.processes.keys());
   }
+
+  activeWorktrees(): string[] {
+    return [...this.worktreeToId.entries()]
+      .filter(([, ptyId]) => this.processes.has(ptyId))
+      .map(([path]) => path);
+  }
 }

@@ -71,7 +71,9 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activePtyIds, setActivePtyIds] = useState<string[]>([]);
+  const [activeSessions, setActiveSessions] = useState<
+    Array<{ worktreePath: string; session: SessionSummary }>
+  >([]);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -89,14 +91,27 @@ export function App() {
     loadProjects();
   }, [loadProjects]);
 
-  // Poll active PTY ids for sidebar
+  // Poll active sessions (PTY worktrees + their most recent session summary) for sidebar
   useEffect(() => {
     if (screen.kind === "projects") return;
 
     const poll = async () => {
       try {
-        const ids = await api.ptyListActive();
-        setActivePtyIds(ids);
+        const worktrees = await api.ptyActiveWorktrees();
+        const results = await Promise.all(
+          worktrees.map(async (wt) => {
+            const sessions: SessionSummary[] = await api.loadSessions(wt);
+            return sessions.length > 0
+              ? { worktreePath: wt, session: sessions[0]! }
+              : null;
+          }),
+        );
+        setActiveSessions(
+          results.filter(
+            (r): r is { worktreePath: string; session: SessionSummary } =>
+              r !== null,
+          ),
+        );
       } catch {
         // ignore
       }
@@ -222,6 +237,14 @@ export function App() {
     [loadSessions],
   );
 
+  const handleSidebarSelectActiveSession = useCallback(
+    (worktreePath: string) => {
+      const label = worktreePath.split("/").pop() ?? "session";
+      setScreen({ kind: "terminal", worktreePath, label, sessionId: undefined });
+    },
+    [],
+  );
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -343,10 +366,11 @@ export function App() {
         tree={tree}
         currentScreen={screen.kind}
         currentWorktreePath={currentWorktreePath}
-        activePtyIds={activePtyIds}
+        activeSessions={activeSessions}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((v) => !v)}
         onSelectWorktree={handleSidebarSelectWorktree}
+        onSelectActiveSession={handleSidebarSelectActiveSession}
         onBackToProjects={handleBackToProjects}
       />
       <div className="flex-1 min-w-0">
