@@ -157,8 +157,8 @@ async function parseSessionFile(
 }
 
 export function projectDirForWorktree(worktreePath: string): string {
-  // Claude encodes absolute paths with "/" replaced by "-"
-  return worktreePath.replaceAll("/", "-");
+  // Claude encodes absolute paths with "/" and "." replaced by "-"
+  return worktreePath.replaceAll("/", "-").replaceAll(".", "-");
 }
 
 export async function loadWorktreeSessions(worktreePath: string): Promise<{
