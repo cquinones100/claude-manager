@@ -13,6 +13,7 @@ type PtyEntry = {
 
 export class ElectronPtyManager {
   private processes = new Map<string, PtyEntry>();
+  private worktreeToId = new Map<string, string>();
   private claudePath: string | undefined;
   private window: BrowserWindow | null = null;
 
@@ -41,6 +42,7 @@ export class ElectronPtyManager {
     const entry: PtyEntry = { instance, alive: true, outputBuffer: "" };
 
     instance.onData((data) => {
+      // Always buffer for reattach replay
       entry.outputBuffer += data;
       if (entry.outputBuffer.length > MAX_BUFFER) {
         entry.outputBuffer = entry.outputBuffer.slice(-MAX_BUFFER);
@@ -53,12 +55,14 @@ export class ElectronPtyManager {
     instance.onExit(() => {
       entry.alive = false;
       this.processes.delete(id);
+      if (cwd) this.worktreeToId.delete(cwd);
       if (this.window && !this.window.isDestroyed()) {
         this.window.webContents.send("pty:exit", id);
       }
     });
 
     this.processes.set(id, entry);
+    if (cwd) this.worktreeToId.set(cwd, id);
   }
 
   write(id: string, data: string): void {
@@ -82,9 +86,14 @@ export class ElectronPtyManager {
   getBuffer(id: string): string {
     const entry = this.processes.get(id);
     if (!entry) return "";
-    const buf = entry.outputBuffer;
-    entry.outputBuffer = "";
-    return buf;
+    return entry.outputBuffer;
+  }
+
+  findByWorktree(worktreePath: string): string | null {
+    const ptyId = this.worktreeToId.get(worktreePath);
+    if (ptyId && this.processes.has(ptyId)) return ptyId;
+    this.worktreeToId.delete(worktreePath);
+    return null;
   }
 
   kill(id: string): void {
@@ -92,6 +101,10 @@ export class ElectronPtyManager {
     if (!entry) return;
     entry.alive = false;
     this.processes.delete(id);
+    // Clean up worktree mapping
+    this.worktreeToId.forEach((ptyId, wt) => {
+      if (ptyId === id) this.worktreeToId.delete(wt);
+    });
     entry.instance.kill();
   }
 
@@ -101,6 +114,7 @@ export class ElectronPtyManager {
       entry.instance.kill();
     });
     this.processes.clear();
+    this.worktreeToId.clear();
   }
 
   has(id: string): boolean {

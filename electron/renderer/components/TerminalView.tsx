@@ -18,15 +18,20 @@ export function TerminalView({
   const terminalRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const spawnedRef = useRef(false);
-
-  const ptyIdRef = useRef(
-    sessionId ? `${worktreePath}:${sessionId}` : `${worktreePath}:new-${Date.now()}`,
-  );
-  const ptyId = ptyIdRef.current;
+  const ptyIdRef = useRef<string | null>(null);
 
   const setupTerminal = useCallback(async () => {
     if (!containerRef.current || spawnedRef.current) return;
     spawnedRef.current = true;
+
+    // Check if there's already a running PTY for this worktree
+    const existingPtyId = await api.ptyFindByWorktree(worktreePath);
+    const ptyId =
+      existingPtyId ??
+      (sessionId
+        ? `${worktreePath}:${sessionId}`
+        : `${worktreePath}:new-${Date.now()}`);
+    ptyIdRef.current = ptyId;
 
     const term = new Terminal({
       cursorBlink: true,
@@ -68,13 +73,13 @@ export function TerminalView({
     const rows = term.rows;
 
     const args: string[] = [];
-    if (sessionId) {
+    if (!existingPtyId && sessionId) {
       args.push("--resume", sessionId);
     }
 
     await api.ptySpawn(ptyId, args, cols, rows, worktreePath);
 
-    // Replay any buffered output
+    // Replay buffered output (covers reattach and initial spawn race)
     const buf = await api.ptyGetBuffer(ptyId);
     if (buf) {
       term.write(buf);
@@ -105,14 +110,14 @@ export function TerminalView({
     });
     resizeObserver.observe(containerRef.current);
 
-    // Cleanup on unmount
+    // Cleanup on unmount — detach listeners but keep PTY alive
     return () => {
       offData();
       offExit();
       resizeObserver.disconnect();
       term.dispose();
     };
-  }, [ptyId, sessionId]);
+  }, [worktreePath, sessionId]);
 
   useEffect(() => {
     const cleanup = setupTerminal();
@@ -139,7 +144,9 @@ export function TerminalView({
           )}
         </div>
         <button
-          onClick={() => api.ptyKill(ptyId)}
+          onClick={() => {
+            if (ptyIdRef.current) api.ptyKill(ptyIdRef.current);
+          }}
           className="text-xs text-zinc-500 hover:text-red-400 transition-colors app-no-drag"
         >
           Kill
