@@ -1,0 +1,37 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #1a1a1e;
+  --surface: #26262c;
+  --surface-hover: #2e2e36;
+  --border: #3a3a44;
+  --accent: #7c6af5;
+  --accent-dim: #4a3fa0;
+  --text: #e2e2e8;
+  --text-muted: #888896;
+  --green: #4ade80;
+  --yellow: #facc15;
+  --red: #f87171;
+  --radius: 8px;
+  --font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
