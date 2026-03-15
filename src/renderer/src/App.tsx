@@ -3,12 +3,20 @@ import PathBar from "./components/PathBar";
 import WorktreeList from "./components/WorktreeList";
 import EmptyState from "./components/EmptyState";
 
+export type ClaudeSession = {
+  name: string;
+  sessionId: string;
+  sourceBranch: string;
+  createdAt: number;
+};
+
 export type Worktree = {
   path: string;
   head: string;
   branch: string | null;
   isBare: boolean;
   isLocked: boolean;
+  claudeSession: ClaudeSession | null;
 };
 
 type State =

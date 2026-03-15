@@ -34,17 +34,32 @@ src/
 | `worktrees:list` | renderer → main | `projectPath: string` | `Worktree[]` |
 | `dialog:openDirectory` | renderer → main | — | `string \| null` |
 
-## Worktree Type
+## Types
 
 ```ts
+type ClaudeSession = {
+  name: string;           // e.g. "cranky-curran"
+  sessionId: string;      // e.g. "local_0aad9201-..."
+  sourceBranch: string;   // branch the worktree was forked from
+  createdAt: number;      // ms since epoch
+};
+
 type Worktree = {
   path: string;
-  head: string;        // full SHA
-  branch: string | null; // null = detached HEAD
+  head: string;             // full SHA
+  branch: string | null;    // null = detached HEAD
   isBare: boolean;
   isLocked: boolean;
+  claudeSession: ClaudeSession | null; // non-null for Claude-created worktrees
 };
 ```
+
+## Claude Session Association
+
+Worktrees created by Claude Desktop are registered in
+`~/Library/Application Support/Claude/git-worktrees.json`. The main process
+reads this file alongside `git worktree list --porcelain` and matches entries
+by path. CLI-created worktrees are not yet covered.
 
 ## Dev
 

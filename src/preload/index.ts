@@ -1,11 +1,19 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+type ClaudeSession = {
+  name: string;
+  sessionId: string;
+  sourceBranch: string;
+  createdAt: number;
+};
+
 type Worktree = {
   path: string;
   head: string;
   branch: string | null;
   isBare: boolean;
   isLocked: boolean;
+  claudeSession: ClaudeSession | null;
 };
 
 contextBridge.exposeInMainWorld("electronAPI", {

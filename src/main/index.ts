@@ -2,8 +2,16 @@ import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { readFile } from "fs/promises";
 
 const execFileAsync = promisify(execFile);
+
+type ClaudeSession = {
+  name: string;
+  sessionId: string;
+  sourceBranch: string;
+  createdAt: number;
+};
 
 type Worktree = {
   path: string;
@@ -11,7 +19,37 @@ type Worktree = {
   branch: string | null;
   isBare: boolean;
   isLocked: boolean;
+  claudeSession: ClaudeSession | null;
 };
+
+type ClaudeWorktreeEntry = {
+  name: string;
+  path: string;
+  sessionId: string;
+  baseRepo: string;
+  branch: string;
+  sourceBranch: string;
+  createdAt: number;
+};
+
+type ClaudeWorktreesFile = {
+  worktrees: Record<string, ClaudeWorktreeEntry>;
+};
+
+async function readClaudeWorktrees(): Promise<ClaudeWorktreeEntry[]> {
+  const filePath = join(
+    app.getPath("appData"),
+    "Claude",
+    "git-worktrees.json"
+  );
+  try {
+    const raw = await readFile(filePath, "utf-8");
+    const data: ClaudeWorktreesFile = JSON.parse(raw);
+    return Object.values(data.worktrees);
+  } catch {
+    return [];
+  }
+}
 
 function parseWorktrees(output: string): Worktree[] {
   return output
@@ -20,7 +58,7 @@ function parseWorktrees(output: string): Worktree[] {
     .filter(Boolean)
     .map((block) => {
       const lines = block.trim().split("\n");
-      const worktree: Partial<Worktree> = { isBare: false, isLocked: false, branch: null };
+      const worktree: Partial<Worktree> = { isBare: false, isLocked: false, branch: null, claudeSession: null };
 
       lines.forEach((line) => {
         if (line.startsWith("worktree ")) worktree.path = line.slice(9);
@@ -35,10 +73,28 @@ function parseWorktrees(output: string): Worktree[] {
 }
 
 async function listWorktrees(projectPath: string): Promise<Worktree[]> {
-  const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
-    cwd: projectPath,
+  const [{ stdout }, claudeEntries] = await Promise.all([
+    execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: projectPath }),
+    readClaudeWorktrees(),
+  ]);
+
+  const worktrees = parseWorktrees(stdout);
+  const claudeByPath = new Map(claudeEntries.map((e) => [e.path, e]));
+
+  return worktrees.map((wt) => {
+    const entry = claudeByPath.get(wt.path);
+    return {
+      ...wt,
+      claudeSession: entry
+        ? {
+            name: entry.name,
+            sessionId: entry.sessionId,
+            sourceBranch: entry.sourceBranch,
+            createdAt: entry.createdAt,
+          }
+        : null,
+    };
   });
-  return parseWorktrees(stdout);
 }
 
 function createWindow(): void {
