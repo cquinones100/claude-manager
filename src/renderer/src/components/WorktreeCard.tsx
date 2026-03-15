@@ -12,7 +12,10 @@ export default function WorktreeCard({ worktree, onClick }: Props) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick(); }}
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
@@ -24,6 +27,7 @@ export default function WorktreeCard({ worktree, onClick }: Props) {
         alignItems: "start",
         cursor: "pointer",
         transition: "border-color 0.15s",
+        outline: "none",
       }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent-dim)")}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
