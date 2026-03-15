@@ -506,6 +506,7 @@ async function listSessions(worktreePath: string): Promise<SessionInfo[]> {
 
 function createWindow(): void {
   const win = new BrowserWindow({
+    title: "Worktree Viewer",
     width: 900,
     height: 650,
     titleBarStyle: "hiddenInset",
