@@ -2,9 +2,9 @@ import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile, readdir } from "fs/promises";
+import { readFile, readdir, stat } from "fs/promises";
 import { homedir } from "os";
-import { createReadStream } from "fs";
+import { createReadStream, watch, FSWatcher } from "fs";
 import { createInterface } from "readline";
 
 const execFileAsync = promisify(execFile);
@@ -543,6 +543,94 @@ ipcMain.handle(
 ipcMain.handle("dialog:openDirectory", async () => {
   const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
   return result.canceled ? null : result.filePaths[0];
+});
+
+// --- File watching ---
+
+let activeWatcher: FSWatcher | null = null;
+let watchedJsonlPath: string | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function resolveJsonlPath(sessionId: string, worktreePath: string): Promise<string | null> {
+  let cliSessionId = sessionId;
+  let cwd = worktreePath;
+
+  if (sessionId.startsWith("local_")) {
+    const meta = await findDesktopSessionMeta(sessionId);
+    if (meta) {
+      cliSessionId = meta.cliSessionId;
+      cwd = meta.cwd;
+    }
+  }
+
+  const projectDir = join(
+    homedir(),
+    ".claude",
+    "projects",
+    worktreePathToProjectDir(cwd)
+  );
+  const jsonlPath = join(projectDir, `${cliSessionId}.jsonl`);
+
+  try {
+    await stat(jsonlPath);
+    return jsonlPath;
+  } catch {
+    return null;
+  }
+}
+
+function stopWatching(): void {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  if (activeWatcher) {
+    activeWatcher.close();
+    activeWatcher = null;
+  }
+  watchedJsonlPath = null;
+}
+
+function sendToAllWindows(channel: string, ...args: unknown[]): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send(channel, ...args);
+  });
+}
+
+ipcMain.handle(
+  "sessions:watch",
+  async (_event, sessionId: string, worktreePath: string) => {
+    stopWatching();
+
+    const jsonlPath = await resolveJsonlPath(sessionId, worktreePath);
+    if (!jsonlPath) return false;
+
+    watchedJsonlPath = jsonlPath;
+
+    activeWatcher = watch(jsonlPath, () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        if (!watchedJsonlPath) return;
+        try {
+          const messages = await readSessionMessages(watchedJsonlPath);
+          sendToAllWindows("sessions:updated", messages);
+        } catch {
+          // file may be mid-write, ignore
+        }
+      }, 300);
+    });
+
+    activeWatcher.on("error", () => {
+      stopWatching();
+    });
+
+    return true;
+  }
+);
+
+ipcMain.handle("sessions:unwatch", () => {
+  stopWatching();
+  return true;
 });
 
 app.whenReady().then(createWindow);

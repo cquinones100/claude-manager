@@ -45,4 +45,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("sessions:history", sessionId, worktreePath),
   openDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke("dialog:openDirectory"),
+  watchSession: (sessionId: string, worktreePath: string): Promise<boolean> =>
+    ipcRenderer.invoke("sessions:watch", sessionId, worktreePath),
+  unwatchSession: (): Promise<boolean> =>
+    ipcRenderer.invoke("sessions:unwatch"),
+  onSessionUpdate: (callback: (messages: ChatMessage[]) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, messages: ChatMessage[]) =>
+      callback(messages);
+    ipcRenderer.on("sessions:updated", handler);
+    return () => {
+      ipcRenderer.removeListener("sessions:updated", handler);
+    };
+  },
 });

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import PathBar from "./components/PathBar";
 import WorktreeList from "./components/WorktreeList";
 import SessionList from "./components/SessionList";
@@ -59,6 +59,9 @@ declare global {
       listSessions: (worktreePath: string) => Promise<SessionInfo[]>;
       getSessionHistory: (sessionId: string, worktreePath: string) => Promise<ChatMessage[]>;
       openDirectory: () => Promise<string | null>;
+      watchSession: (sessionId: string, worktreePath: string) => Promise<boolean>;
+      unwatchSession: () => Promise<boolean>;
+      onSessionUpdate: (callback: (messages: ChatMessage[]) => void) => () => void;
     };
   }
 }
@@ -129,6 +132,30 @@ export default function App() {
     },
     [handleWorktreeClick]
   );
+
+  // File watching: subscribe when in chat view, unsubscribe when leaving
+  const watchTarget =
+    view.kind === "chat" && !view.loading
+      ? { sessionId: view.session.sessionId, worktreePath: view.worktree.path }
+      : null;
+
+  useEffect(() => {
+    if (!watchTarget) return;
+
+    window.electronAPI.watchSession(watchTarget.sessionId, watchTarget.worktreePath);
+
+    const removeListener = window.electronAPI.onSessionUpdate((messages) => {
+      setView((prev) => {
+        if (prev.kind !== "chat") return prev;
+        return { ...prev, messages };
+      });
+    });
+
+    return () => {
+      removeListener();
+      window.electronAPI.unwatchSession();
+    };
+  }, [watchTarget?.sessionId, watchTarget?.worktreePath]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
