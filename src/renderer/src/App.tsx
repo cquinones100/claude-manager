@@ -62,6 +62,8 @@ declare global {
       watchSession: (sessionId: string, worktreePath: string) => Promise<boolean>;
       unwatchSession: () => Promise<boolean>;
       onSessionUpdate: (callback: (messages: ChatMessage[]) => void) => () => void;
+      openSessionInTerminal: (sessionId: string, worktreePath: string) => Promise<void>;
+      openSessionInDesktop: () => Promise<void>;
     };
   }
 }
@@ -122,6 +124,14 @@ export default function App() {
     []
   );
 
+  const handleOpenSession = useCallback(async (session: SessionInfo, worktree: Worktree) => {
+    if (session.source === "cli") {
+      await window.electronAPI.openSessionInTerminal(session.sessionId, worktree.path);
+    } else {
+      await window.electronAPI.openSessionInDesktop();
+    }
+  }, []);
+
   const handleBackToList = useCallback(() => {
     setView({ kind: "list" });
   }, []);
@@ -180,6 +190,7 @@ export default function App() {
             loading={view.loading}
             onBack={handleBackToList}
             onSessionClick={handleSessionClick}
+            onOpenSession={handleOpenSession}
           />
         )}
         {view.kind === "chat" && (
@@ -189,6 +200,7 @@ export default function App() {
             messages={view.messages}
             loading={view.loading}
             onBack={() => handleBackToSessions(view.worktree)}
+            onOpenSession={handleOpenSession}
           />
         )}
       </div>

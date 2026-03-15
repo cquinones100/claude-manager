@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell } from "electron";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile, readdir, stat } from "fs/promises";
+import { readFile, readdir, stat, access } from "fs/promises";
 import { homedir } from "os";
 import { createReadStream, watch, FSWatcher } from "fs";
 import { createInterface } from "readline";
@@ -504,6 +504,47 @@ async function listSessions(worktreePath: string): Promise<SessionInfo[]> {
   );
 }
 
+async function detectTerminal(): Promise<"iterm" | "terminal"> {
+  try {
+    await access("/Applications/iTerm.app");
+    return "iterm";
+  } catch {
+    return "terminal";
+  }
+}
+
+async function openInTerminal(worktreePath: string, sessionId: string | null): Promise<void> {
+  const terminal = await detectTerminal();
+  const resumeFlag = sessionId ? ` --resume ${sessionId}` : "";
+  const command = `cd '${worktreePath.replace(/'/g, "'\\''")}' && claude${resumeFlag}`;
+
+  const script =
+    terminal === "iterm"
+      ? `tell application "iTerm2"
+           activate
+           set newWindow to (create window with default profile)
+           tell current session of newWindow
+             write text "${command.replace(/"/g, '\\"')}"
+           end tell
+         end tell`
+      : `tell application "Terminal"
+           activate
+           do script "${command.replace(/"/g, '\\"')}"
+         end tell`;
+
+  await execFileAsync("osascript", ["-e", script]);
+}
+
+async function resolveCliSessionId(sessionId: string): Promise<string | null> {
+  if (!sessionId.startsWith("local_")) return sessionId;
+  const meta = await findDesktopSessionMeta(sessionId);
+  return meta?.cliSessionId ?? null;
+}
+
+async function openInDesktop(): Promise<void> {
+  await shell.openExternal("claude://");
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     title: "Worktree Viewer",
@@ -538,6 +579,18 @@ ipcMain.handle(
     return getSessionHistory(sessionId, worktreePath);
   }
 );
+
+ipcMain.handle(
+  "session:openInTerminal",
+  async (_event, sessionId: string, worktreePath: string) => {
+    const cliId = await resolveCliSessionId(sessionId);
+    await openInTerminal(worktreePath, cliId);
+  }
+);
+
+ipcMain.handle("session:openInDesktop", async () => {
+  await openInDesktop();
+});
 
 ipcMain.handle("dialog:openDirectory", async () => {
   const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });

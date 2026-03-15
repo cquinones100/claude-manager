@@ -57,4 +57,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("sessions:updated", handler);
     };
   },
+  openSessionInTerminal: (sessionId: string, worktreePath: string): Promise<void> =>
+    ipcRenderer.invoke("session:openInTerminal", sessionId, worktreePath),
+  openSessionInDesktop: (): Promise<void> =>
+    ipcRenderer.invoke("session:openInDesktop"),
 });

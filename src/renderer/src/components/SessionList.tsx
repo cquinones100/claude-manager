@@ -6,9 +6,10 @@ type Props = {
   loading: boolean;
   onBack: () => void;
   onSessionClick: (session: SessionInfo, worktree: Worktree) => void;
+  onOpenSession: (session: SessionInfo, worktree: Worktree) => void;
 };
 
-export default function SessionList({ worktree, sessions, loading, onBack, onSessionClick }: Props) {
+export default function SessionList({ worktree, sessions, loading, onBack, onSessionClick, onOpenSession }: Props) {
   const parts = worktree.path.split("/");
   const dirName = parts[parts.length - 1];
 
@@ -59,13 +60,14 @@ export default function SessionList({ worktree, sessions, loading, onBack, onSes
           key={session.sessionId}
           session={session}
           onClick={() => onSessionClick(session, worktree)}
+          onOpen={() => onOpenSession(session, worktree)}
         />
       ))}
     </div>
   );
 }
 
-function SessionCard({ session, onClick }: { session: SessionInfo; onClick: () => void }) {
+function SessionCard({ session, onClick, onOpen }: { session: SessionInfo; onClick: () => void; onOpen: () => void }) {
   const startDate = new Date(session.startedAt);
   const lastDate = new Date(session.lastActiveAt);
 
@@ -110,6 +112,7 @@ function SessionCard({ session, onClick }: { session: SessionInfo; onClick: () =
         <span style={{ fontSize: "12px", color: "var(--text-muted)", marginLeft: "auto" }}>
           {session.completedTurns} turn{session.completedTurns !== 1 ? "s" : ""}
         </span>
+        <OpenButton source={session.source} onOpen={onOpen} />
       </div>
 
       {session.title && (
@@ -155,6 +158,35 @@ function SourceBadge({ source }: { source: "desktop" | "cli" }) {
     >
       {isDesktop ? "desktop" : "cli"}
     </span>
+  );
+}
+
+function OpenButton({ source, onOpen }: { source: "desktop" | "cli"; onOpen: () => void }) {
+  const label = source === "cli" ? "Open in Terminal" : "Open in Claude";
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen();
+      }}
+      title={label}
+      style={{
+        background: "var(--accent)",
+        border: "none",
+        borderRadius: "4px",
+        color: "#fff",
+        cursor: "pointer",
+        fontSize: "11px",
+        fontWeight: 600,
+        padding: "3px 8px",
+        transition: "opacity 0.15s",
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+    >
+      {source === "cli" ? "Terminal" : "Open App"}
+    </button>
   );
 }
 

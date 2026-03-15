@@ -7,9 +7,10 @@ type Props = {
   messages: ChatMessage[];
   loading: boolean;
   onBack: () => void;
+  onOpenSession: (session: SessionInfo, worktree: Worktree) => void;
 };
 
-export default function ChatHistory({ session, messages, loading, onBack }: Props) {
+export default function ChatHistory({ worktree, session, messages, loading, onBack, onOpenSession }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export default function ChatHistory({ session, messages, loading, onBack }: Prop
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0", height: "100%" }}>
-      <ChatHeader session={session} onBack={onBack} />
+      <ChatHeader session={session} onBack={onBack} onOpen={() => onOpenSession(session, worktree)} />
 
       <div
         style={{
@@ -52,7 +53,9 @@ export default function ChatHistory({ session, messages, loading, onBack }: Prop
   );
 }
 
-function ChatHeader({ session, onBack }: { session: SessionInfo; onBack: () => void }) {
+function ChatHeader({ session, onBack, onOpen }: { session: SessionInfo; onBack: () => void; onOpen: () => void }) {
+  const openLabel = session.source === "cli" ? "Open in Terminal" : "Open in Claude";
+
   return (
     <div
       style={{
@@ -104,6 +107,26 @@ function ChatHeader({ session, onBack }: { session: SessionInfo; onBack: () => v
           {session.model}
         </span>
       )}
+      <button
+        onClick={onOpen}
+        title={openLabel}
+        style={{
+          background: "var(--accent)",
+          border: "none",
+          borderRadius: "var(--radius)",
+          color: "#fff",
+          cursor: "pointer",
+          fontSize: "12px",
+          fontWeight: 600,
+          padding: "4px 12px",
+          flexShrink: 0,
+          transition: "opacity 0.15s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+      >
+        {openLabel}
+      </button>
     </div>
   );
 }
