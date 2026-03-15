@@ -37,6 +37,11 @@ src/
 | `sessions:list` | renderer → main | `worktreePath: string` | `SessionInfo[]` |
 | `sessions:history` | renderer → main | `sessionId: string, worktreePath: string` | `ChatMessage[]` |
 | `dialog:openDirectory` | renderer → main | — | `string \| null` |
+| `session:openInTerminal` | renderer → main | `sessionId: string, worktreePath: string` | `void` |
+| `session:openInDesktop` | renderer → main | — | `void` |
+| `sessions:watch` | renderer → main | `sessionId: string, worktreePath: string` | `boolean` |
+| `sessions:unwatch` | renderer → main | — | `boolean` |
+| `sessions:updated` | main → renderer | — | `ChatMessage[]` |
 
 ## Types
 
@@ -96,6 +101,21 @@ Two sources are scanned for sessions:
 Desktop sessions are matched by `cwd` or `worktreePath`. For chat history,
 Desktop sessions resolve via `cliSessionId` to the CLI JSONL file. Messages
 are filtered to exclude sidechain messages, tool results, and thinking blocks.
+
+## Opening Sessions
+
+Sessions can be opened directly from the app. CLI sessions open a new
+terminal window (iTerm2 if installed, otherwise Terminal.app) at the worktree
+path and run `claude --resume <sessionId>`. Desktop sessions open the Claude
+app. For desktop sessions, the `cliSessionId` from the desktop metadata is
+resolved so the correct CLI session is resumed. If the metadata is missing,
+`claude` starts fresh at the worktree path instead of resuming a stale session.
+
+## Live Watching
+
+When viewing a chat conversation, the app watches the underlying JSONL file
+for changes and automatically refreshes the message list. This is managed via
+`sessions:watch`/`sessions:unwatch` IPC channels with a 300ms debounce.
 
 ## Dev
 

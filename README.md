@@ -52,6 +52,14 @@ When you click into a worktree to see its sessions, both sources are queried sim
 
 When you open a conversation, the app always reads from the CLI JSONL regardless of whether the session originated from Desktop or CLI. For Desktop sessions, it follows the `cliSessionId` pointer to find the right JSONL file. It then filters the raw events down to user and assistant messages, stripping out tool results, sidechain messages, and thinking blocks.
 
+### Opening sessions
+
+You can open any session directly from the app. Each session card and the chat history header have an "Open" button that behaves differently based on the session source.
+
+For CLI sessions, the app opens a new terminal window at the worktree's path and runs `claude --resume <sessionId>`. It detects iTerm2 if installed, otherwise falls back to Terminal.app. The terminal scripting uses AppleScript via `osascript`. For Desktop sessions, the `cliSessionId` from the Desktop metadata is resolved first so the correct CLI session gets resumed. If the metadata file has been cleaned up, the app skips the `--resume` flag and opens a fresh `claude` at the worktree path rather than accidentally resuming an unrelated session.
+
+For Desktop sessions, clicking "Open App" launches Claude Desktop. There is currently no deep link to navigate to a specific session within the app.
+
 ### Live updates
 
 When you're viewing a conversation, the app watches the underlying JSONL file for changes using `fs.watch`. If Claude is actively working in that session, new messages appear in the viewer as they're written to disk. This works the same way for both CLI and Desktop sessions since both ultimately write to the same JSONL files.
