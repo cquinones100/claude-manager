@@ -3,9 +3,10 @@ import WorktreeCard from "./WorktreeCard";
 
 type Props = {
   worktrees: Worktree[];
+  onWorktreeClick: (worktree: Worktree) => void;
 };
 
-export default function WorktreeList({ worktrees }: Props) {
+export default function WorktreeList({ worktrees, onWorktreeClick }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div
@@ -20,7 +21,7 @@ export default function WorktreeList({ worktrees }: Props) {
         {worktrees.length} worktree{worktrees.length !== 1 ? "s" : ""}
       </div>
       {worktrees.map((wt) => (
-        <WorktreeCard key={wt.path} worktree={wt} />
+        <WorktreeCard key={wt.path} worktree={wt} onClick={() => onWorktreeClick(wt)} />
       ))}
     </div>
   );

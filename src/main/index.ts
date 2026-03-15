@@ -2,7 +2,10 @@ import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { join } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { readFile } from "fs/promises";
+import { readFile, readdir } from "fs/promises";
+import { homedir } from "os";
+import { createReadStream } from "fs";
+import { createInterface } from "readline";
 
 const execFileAsync = promisify(execFile);
 
@@ -97,6 +100,201 @@ async function listWorktrees(projectPath: string): Promise<Worktree[]> {
   });
 }
 
+type SessionInfo = {
+  sessionId: string;
+  title: string | null;
+  model: string | null;
+  startedAt: string;
+  lastActiveAt: string;
+  isArchived: boolean;
+  completedTurns: number;
+  source: "desktop" | "cli";
+};
+
+type DesktopSessionFile = {
+  sessionId: string;
+  cliSessionId: string;
+  cwd: string;
+  worktreePath?: string;
+  worktreeName?: string;
+  sourceBranch?: string;
+  createdAt: number;
+  lastActivityAt: number;
+  model: string;
+  isArchived: boolean;
+  title: string | null;
+  completedTurns: number;
+};
+
+async function listDesktopSessions(worktreePath: string): Promise<SessionInfo[]> {
+  const sessionsRoot = join(
+    app.getPath("appData"),
+    "Claude",
+    "claude-code-sessions"
+  );
+
+  let windowDirs: string[];
+  try {
+    windowDirs = await readdir(sessionsRoot);
+  } catch {
+    return [];
+  }
+
+  const sessions: SessionInfo[] = [];
+
+  for (const windowDir of windowDirs) {
+    const windowPath = join(sessionsRoot, windowDir);
+    let projectDirs: string[];
+    try {
+      projectDirs = await readdir(windowPath);
+    } catch {
+      continue;
+    }
+
+    for (const projectDir of projectDirs) {
+      const projectPath = join(windowPath, projectDir);
+      let sessionFiles: string[];
+      try {
+        sessionFiles = (await readdir(projectPath)).filter((f) => f.endsWith(".json"));
+      } catch {
+        continue;
+      }
+
+      const results = await Promise.all(
+        sessionFiles.map(async (f) => {
+          try {
+            const raw = await readFile(join(projectPath, f), "utf-8");
+            return JSON.parse(raw) as DesktopSessionFile;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      results.forEach((entry) => {
+        if (!entry) return;
+        const matchesByCwd = entry.cwd === worktreePath;
+        const matchesByWorktreePath = entry.worktreePath === worktreePath;
+        if (!matchesByCwd && !matchesByWorktreePath) return;
+
+        sessions.push({
+          sessionId: entry.sessionId,
+          title: entry.title,
+          model: entry.model,
+          startedAt: new Date(entry.createdAt).toISOString(),
+          lastActiveAt: new Date(entry.lastActivityAt).toISOString(),
+          isArchived: entry.isArchived,
+          completedTurns: entry.completedTurns,
+          source: "desktop",
+        });
+      });
+    }
+  }
+
+  return sessions;
+}
+
+function worktreePathToProjectDir(worktreePath: string): string {
+  return worktreePath.replace(/\//g, "-");
+}
+
+async function listCliSessions(worktreePath: string): Promise<SessionInfo[]> {
+  const projectDir = join(
+    homedir(),
+    ".claude",
+    "projects",
+    worktreePathToProjectDir(worktreePath)
+  );
+
+  let files: string[];
+  try {
+    files = (await readdir(projectDir)).filter((f) => f.endsWith(".jsonl"));
+  } catch {
+    return [];
+  }
+
+  const results = await Promise.all(
+    files.map(async (f) => {
+      const rl = createInterface({
+        input: createReadStream(join(projectDir, f)),
+        crlfDelay: Infinity,
+      });
+
+      let sessionId: string | null = null;
+      let firstPrompt: string | null = null;
+      let startedAt: string | null = null;
+      let lastActiveAt: string | null = null;
+      let messageCount = 0;
+
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line);
+          if (entry.type === "file-history-snapshot") continue;
+
+          if (!sessionId && entry.sessionId) sessionId = entry.sessionId;
+          if (!startedAt && entry.timestamp) startedAt = entry.timestamp;
+          if (entry.timestamp) lastActiveAt = entry.timestamp;
+
+          if (entry.type === "user" && !entry.isMeta && entry.message?.content) {
+            messageCount++;
+            if (!firstPrompt) {
+              const content = entry.message.content;
+              firstPrompt =
+                typeof content === "string" ? content.slice(0, 200) : "(complex message)";
+            }
+          } else if (entry.type === "assistant") {
+            messageCount++;
+          }
+        } catch {
+          // skip malformed lines
+        }
+      }
+
+      if (!sessionId || !startedAt) return null;
+
+      return {
+        sessionId,
+        title: firstPrompt,
+        model: null,
+        startedAt,
+        lastActiveAt: lastActiveAt ?? startedAt,
+        isArchived: false,
+        completedTurns: messageCount,
+        source: "cli" as const,
+      };
+    })
+  );
+
+  return results.filter((s): s is SessionInfo => s !== null);
+}
+
+async function listSessions(worktreePath: string): Promise<SessionInfo[]> {
+  const [desktopSessions, cliSessions] = await Promise.all([
+    listDesktopSessions(worktreePath),
+    listCliSessions(worktreePath),
+  ]);
+
+  // Deduplicate: desktop sessions link to CLI sessions via cliSessionId,
+  // but since we match by path and return both, just merge and sort.
+  const seen = new Set<string>();
+  const all: SessionInfo[] = [];
+
+  // Desktop sessions take priority
+  desktopSessions.forEach((s) => {
+    seen.add(s.sessionId);
+    all.push(s);
+  });
+
+  cliSessions.forEach((s) => {
+    if (!seen.has(s.sessionId)) all.push(s);
+  });
+
+  return all.sort(
+    (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
+  );
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 900,
@@ -118,6 +316,10 @@ function createWindow(): void {
 
 ipcMain.handle("worktrees:list", async (_event, projectPath: string) => {
   return listWorktrees(projectPath);
+});
+
+ipcMain.handle("sessions:list", async (_event, worktreePath: string) => {
+  return listSessions(worktreePath);
 });
 
 ipcMain.handle("dialog:openDirectory", async () => {

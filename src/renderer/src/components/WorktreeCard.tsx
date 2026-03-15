@@ -2,15 +2,17 @@ import { Worktree, ClaudeSession } from "../App";
 
 type Props = {
   worktree: Worktree;
+  onClick: () => void;
 };
 
-export default function WorktreeCard({ worktree }: Props) {
+export default function WorktreeCard({ worktree, onClick }: Props) {
   const parts = worktree.path.split("/");
   const dirName = parts[parts.length - 1];
   const dirParent = parts.slice(0, -1).join("/");
 
   return (
     <div
+      onClick={onClick}
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
@@ -20,7 +22,11 @@ export default function WorktreeCard({ worktree }: Props) {
         gridTemplateColumns: "1fr auto",
         gap: "8px 16px",
         alignItems: "start",
+        cursor: "pointer",
+        transition: "border-color 0.15s",
       }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent-dim)")}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
     >
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>

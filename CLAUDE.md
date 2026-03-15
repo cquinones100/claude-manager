@@ -17,13 +17,14 @@ src/
   renderer/
     index.html
     src/
-      App.tsx                    — top-level state machine (idle/loading/success/error)
+      App.tsx                    — top-level state machine, view routing (list ↔ sessions)
       index.css                  — CSS variables, global reset
       main.tsx                   — React root
       components/
         PathBar.tsx              — path input, Browse (native dialog), Load button
-        WorktreeCard.tsx         — single worktree row: branch pill, SHA, locked badge
+        WorktreeCard.tsx         — single worktree row: branch pill, SHA, locked badge, clickable
         WorktreeList.tsx         — maps worktrees to WorktreeCard
+        SessionList.tsx          — session detail view for a selected worktree
         EmptyState.tsx           — idle / loading / error placeholder
 ```
 
@@ -32,6 +33,7 @@ src/
 | Channel | Direction | Args | Returns |
 |---|---|---|---|
 | `worktrees:list` | renderer → main | `projectPath: string` | `Worktree[]` |
+| `sessions:list` | renderer → main | `worktreePath: string` | `SessionInfo[]` |
 | `dialog:openDirectory` | renderer → main | — | `string \| null` |
 
 ## Types
@@ -52,6 +54,15 @@ type Worktree = {
   isLocked: boolean;
   claudeSession: ClaudeSession | null; // non-null for Claude-created worktrees
 };
+
+type SessionInfo = {
+  sessionId: string;
+  firstPrompt: string;    // first user message (truncated to 200 chars)
+  startedAt: string;      // ISO timestamp
+  lastActiveAt: string;   // ISO timestamp
+  isActive: boolean;      // true if session PID is still running
+  messageCount: number;
+};
 ```
 
 ## Claude Session Association
@@ -60,6 +71,15 @@ Worktrees created by Claude Desktop are registered in
 `~/Library/Application Support/Claude/git-worktrees.json`. The main process
 reads this file alongside `git worktree list --porcelain` and matches entries
 by path. CLI-created worktrees are not yet covered.
+
+## Session Discovery
+
+Sessions are stored in `~/.claude/projects/<escaped-path>/*.jsonl` where
+`<escaped-path>` is the worktree's absolute path with `/` replaced by `-`.
+Each JSONL file is one session. The main process streams each file to extract
+the session ID, first user prompt, timestamps, and message count. Active
+sessions are cross-referenced against `~/.claude/sessions/*.json` (keyed by
+PID) to determine if the session process is still running.
 
 ## Dev
 
