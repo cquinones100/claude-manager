@@ -10,6 +10,7 @@ export type ClaudeSession = {
   sessionId: string;
   sourceBranch: string;
   createdAt: number;
+  title: string | null;
 };
 
 export type Worktree = {
@@ -19,6 +20,7 @@ export type Worktree = {
   isBare: boolean;
   isLocked: boolean;
   claudeSession: ClaudeSession | null;
+  sessionPreview: string | null;
 };
 
 export type SessionInfo = {

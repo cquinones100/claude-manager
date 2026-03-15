@@ -33,6 +33,22 @@ export default function WorktreeCard({ worktree, onClick }: Props) {
           <BranchPill branch={worktree.branch} isBare={worktree.isBare} />
           {worktree.isLocked && <LockedBadge />}
         </div>
+        {worktree.sessionPreview && (
+          <div
+            style={{
+              fontSize: "13px",
+              color: "var(--text)",
+              lineHeight: 1.4,
+              marginBottom: "4px",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: "vertical",
+            }}
+          >
+            {worktree.sessionPreview}
+          </div>
+        )}
         <div
           style={{
             fontFamily: "var(--font-mono)",

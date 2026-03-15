@@ -5,6 +5,7 @@ type ClaudeSession = {
   sessionId: string;
   sourceBranch: string;
   createdAt: number;
+  title: string | null;
 };
 
 type Worktree = {
@@ -14,6 +15,7 @@ type Worktree = {
   isBare: boolean;
   isLocked: boolean;
   claudeSession: ClaudeSession | null;
+  sessionPreview: string | null;
 };
 
 type SessionInfo = {

@@ -14,6 +14,7 @@ type ClaudeSession = {
   sessionId: string;
   sourceBranch: string;
   createdAt: number;
+  title: string | null;
 };
 
 type Worktree = {
@@ -23,6 +24,7 @@ type Worktree = {
   isBare: boolean;
   isLocked: boolean;
   claudeSession: ClaudeSession | null;
+  sessionPreview: string | null;
 };
 
 type ClaudeWorktreeEntry = {
@@ -61,7 +63,7 @@ function parseWorktrees(output: string): Worktree[] {
     .filter(Boolean)
     .map((block) => {
       const lines = block.trim().split("\n");
-      const worktree: Partial<Worktree> = { isBare: false, isLocked: false, branch: null, claudeSession: null };
+      const worktree: Partial<Worktree> = { isBare: false, isLocked: false, branch: null, claudeSession: null, sessionPreview: null };
 
       lines.forEach((line) => {
         if (line.startsWith("worktree ")) worktree.path = line.slice(9);
@@ -75,10 +77,73 @@ function parseWorktrees(output: string): Worktree[] {
     });
 }
 
+async function getAllDesktopSessionsByPath(): Promise<Map<string, DesktopSessionFile>> {
+  const sessionsRoot = join(app.getPath("appData"), "Claude", "claude-code-sessions");
+  const bestByPath = new Map<string, DesktopSessionFile>();
+
+  let windowDirs: string[];
+  try {
+    windowDirs = await readdir(sessionsRoot);
+  } catch {
+    return bestByPath;
+  }
+
+  for (const windowDir of windowDirs) {
+    const windowPath = join(sessionsRoot, windowDir);
+    let projectDirs: string[];
+    try {
+      projectDirs = await readdir(windowPath);
+    } catch {
+      continue;
+    }
+
+    for (const projectDir of projectDirs) {
+      const projectPath = join(windowPath, projectDir);
+      let sessionFiles: string[];
+      try {
+        sessionFiles = (await readdir(projectPath)).filter((f) => f.endsWith(".json"));
+      } catch {
+        continue;
+      }
+
+      const entries = await Promise.all(
+        sessionFiles.map(async (f) => {
+          try {
+            const raw = await readFile(join(projectPath, f), "utf-8");
+            return JSON.parse(raw) as DesktopSessionFile;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      entries.forEach((entry) => {
+        if (!entry || !entry.title) return;
+
+        // Index by both cwd and originCwd so base repos get matched too
+        const keys = [entry.cwd];
+        if (entry.originCwd && entry.originCwd !== entry.cwd) {
+          keys.push(entry.originCwd);
+        }
+
+        keys.forEach((key) => {
+          const existing = bestByPath.get(key);
+          if (!existing || entry.lastActivityAt > existing.lastActivityAt) {
+            bestByPath.set(key, entry);
+          }
+        });
+      });
+    }
+  }
+
+  return bestByPath;
+}
+
 async function listWorktrees(projectPath: string): Promise<Worktree[]> {
-  const [{ stdout }, claudeEntries] = await Promise.all([
+  const [{ stdout }, claudeEntries, desktopByPath] = await Promise.all([
     execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: projectPath }),
     readClaudeWorktrees(),
+    getAllDesktopSessionsByPath(),
   ]);
 
   const worktrees = parseWorktrees(stdout);
@@ -86,14 +151,18 @@ async function listWorktrees(projectPath: string): Promise<Worktree[]> {
 
   return worktrees.map((wt) => {
     const entry = claudeByPath.get(wt.path);
+    const desktopSession = desktopByPath.get(wt.path);
+
     return {
       ...wt,
+      sessionPreview: desktopSession?.title ?? null,
       claudeSession: entry
         ? {
             name: entry.name,
             sessionId: entry.sessionId,
             sourceBranch: entry.sourceBranch,
             createdAt: entry.createdAt,
+            title: desktopSession?.title ?? null,
           }
         : null,
     };
@@ -115,6 +184,7 @@ type DesktopSessionFile = {
   sessionId: string;
   cliSessionId: string;
   cwd: string;
+  originCwd?: string;
   worktreePath?: string;
   worktreeName?: string;
   sourceBranch?: string;
