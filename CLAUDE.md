@@ -102,7 +102,16 @@ are filtered to exclude sidechain messages, tool results, and thinking blocks.
 ```bash
 pnpm dev      # starts electron-vite dev server + electron
 pnpm build    # production build to out/
+pnpm test     # build + run Playwright e2e tests
 ```
+
+## Testing
+
+Playwright e2e tests live in `e2e/`. The fixture in `e2e/fixtures/setup.ts`
+creates a temporary git repo with a worktree and mock Claude session data
+(Desktop metadata + CLI JSONL). The app reads from these fixtures via
+`CLAUDE_APP_DATA_DIR` and `CLAUDE_HOME_DIR` environment variables so tests
+don't depend on local file system state.
 
 ## Notes
 

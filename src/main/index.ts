@@ -9,6 +9,14 @@ import { createInterface } from "readline";
 
 const execFileAsync = promisify(execFile);
 
+function getClaudeAppDataDir(): string {
+  return join(process.env.CLAUDE_APP_DATA_DIR || app.getPath("appData"), "Claude");
+}
+
+function getClaudeHomeDir(): string {
+  return process.env.CLAUDE_HOME_DIR || join(homedir(), ".claude");
+}
+
 type ClaudeSession = {
   name: string;
   sessionId: string;
@@ -42,11 +50,7 @@ type ClaudeWorktreesFile = {
 };
 
 async function readClaudeWorktrees(): Promise<ClaudeWorktreeEntry[]> {
-  const filePath = join(
-    app.getPath("appData"),
-    "Claude",
-    "git-worktrees.json"
-  );
+  const filePath = join(getClaudeAppDataDir(), "git-worktrees.json");
   try {
     const raw = await readFile(filePath, "utf-8");
     const data: ClaudeWorktreesFile = JSON.parse(raw);
@@ -78,7 +82,7 @@ function parseWorktrees(output: string): Worktree[] {
 }
 
 async function getAllDesktopSessionsByPath(): Promise<Map<string, DesktopSessionFile>> {
-  const sessionsRoot = join(app.getPath("appData"), "Claude", "claude-code-sessions");
+  const sessionsRoot = join(getClaudeAppDataDir(), "claude-code-sessions");
   const bestByPath = new Map<string, DesktopSessionFile>();
 
   let windowDirs: string[];
@@ -202,11 +206,7 @@ type DesktopSessionResult = {
 };
 
 async function listDesktopSessions(worktreePath: string): Promise<DesktopSessionResult[]> {
-  const sessionsRoot = join(
-    app.getPath("appData"),
-    "Claude",
-    "claude-code-sessions"
-  );
+  const sessionsRoot = join(getClaudeAppDataDir(), "claude-code-sessions");
 
   let windowDirs: string[];
   try {
@@ -278,8 +278,7 @@ function worktreePathToProjectDir(worktreePath: string): string {
 
 async function listCliSessions(worktreePath: string): Promise<SessionInfo[]> {
   const projectDir = join(
-    homedir(),
-    ".claude",
+    getClaudeHomeDir(),
     "projects",
     worktreePathToProjectDir(worktreePath)
   );
@@ -355,7 +354,7 @@ type ChatMessage = {
 };
 
 async function findDesktopSessionMeta(sessionId: string): Promise<DesktopSessionFile | null> {
-  const sessionsRoot = join(app.getPath("appData"), "Claude", "claude-code-sessions");
+  const sessionsRoot = join(getClaudeAppDataDir(), "claude-code-sessions");
   let windowDirs: string[];
   try {
     windowDirs = await readdir(sessionsRoot);
@@ -467,8 +466,7 @@ async function getSessionHistory(
   }
 
   const projectDir = join(
-    homedir(),
-    ".claude",
+    getClaudeHomeDir(),
     "projects",
     worktreePathToProjectDir(cwd)
   );
@@ -564,8 +562,7 @@ async function resolveJsonlPath(sessionId: string, worktreePath: string): Promis
   }
 
   const projectDir = join(
-    homedir(),
-    ".claude",
+    getClaudeHomeDir(),
     "projects",
     worktreePathToProjectDir(cwd)
   );
