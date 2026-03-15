@@ -17,14 +17,15 @@ src/
   renderer/
     index.html
     src/
-      App.tsx                    — top-level state machine, view routing (list ↔ sessions)
+      App.tsx                    — top-level state machine, view routing (list → sessions → chat)
       index.css                  — CSS variables, global reset
       main.tsx                   — React root
       components/
         PathBar.tsx              — path input, Browse (native dialog), Load button
         WorktreeCard.tsx         — single worktree row: branch pill, SHA, locked badge, clickable
         WorktreeList.tsx         — maps worktrees to WorktreeCard
-        SessionList.tsx          — session detail view for a selected worktree
+        SessionList.tsx          — session list for a selected worktree, clickable
+        ChatHistory.tsx          — chat conversation view (user right, assistant left)
         EmptyState.tsx           — idle / loading / error placeholder
 ```
 
@@ -34,6 +35,7 @@ src/
 |---|---|---|---|
 | `worktrees:list` | renderer → main | `projectPath: string` | `Worktree[]` |
 | `sessions:list` | renderer → main | `worktreePath: string` | `SessionInfo[]` |
+| `sessions:history` | renderer → main | `sessionId: string, worktreePath: string` | `ChatMessage[]` |
 | `dialog:openDirectory` | renderer → main | — | `string \| null` |
 
 ## Types
@@ -57,11 +59,20 @@ type Worktree = {
 
 type SessionInfo = {
   sessionId: string;
-  firstPrompt: string;    // first user message (truncated to 200 chars)
+  title: string | null;
+  model: string | null;
   startedAt: string;      // ISO timestamp
   lastActiveAt: string;   // ISO timestamp
-  isActive: boolean;      // true if session PID is still running
-  messageCount: number;
+  isArchived: boolean;
+  completedTurns: number;
+  source: "desktop" | "cli";
+};
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;        // extracted text blocks only
+  timestamp: string;      // ISO timestamp
+  toolUse: { name: string } | null;
 };
 ```
 
@@ -74,12 +85,17 @@ by path. CLI-created worktrees are not yet covered.
 
 ## Session Discovery
 
-Sessions are stored in `~/.claude/projects/<escaped-path>/*.jsonl` where
-`<escaped-path>` is the worktree's absolute path with `/` replaced by `-`.
-Each JSONL file is one session. The main process streams each file to extract
-the session ID, first user prompt, timestamps, and message count. Active
-sessions are cross-referenced against `~/.claude/sessions/*.json` (keyed by
-PID) to determine if the session process is still running.
+Two sources are scanned for sessions:
+
+- **Desktop**: `~/Library/Application Support/Claude/claude-code-sessions/<windowUUID>/<projectUUID>/<sessionId>.json`
+  — rich metadata (title, model, archived status). Each file has a `cliSessionId`
+  linking to the CLI JSONL for conversation history.
+- **CLI**: `~/.claude/projects/<escaped-path>/*.jsonl` where `<escaped-path>` is
+  the worktree's absolute path with `/` replaced by `-`.
+
+Desktop sessions are matched by `cwd` or `worktreePath`. For chat history,
+Desktop sessions resolve via `cliSessionId` to the CLI JSONL file. Messages
+are filtered to exclude sidechain messages, tool results, and thinking blocks.
 
 ## Dev
 

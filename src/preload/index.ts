@@ -27,11 +27,20 @@ type SessionInfo = {
   source: "desktop" | "cli";
 };
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  toolUse: { name: string } | null;
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   listWorktrees: (projectPath: string): Promise<Worktree[]> =>
     ipcRenderer.invoke("worktrees:list", projectPath),
   listSessions: (worktreePath: string): Promise<SessionInfo[]> =>
     ipcRenderer.invoke("sessions:list", worktreePath),
+  getSessionHistory: (sessionId: string, worktreePath: string): Promise<ChatMessage[]> =>
+    ipcRenderer.invoke("sessions:history", sessionId, worktreePath),
   openDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke("dialog:openDirectory"),
 });

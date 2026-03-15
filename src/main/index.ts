@@ -126,7 +126,12 @@ type DesktopSessionFile = {
   completedTurns: number;
 };
 
-async function listDesktopSessions(worktreePath: string): Promise<SessionInfo[]> {
+type DesktopSessionResult = {
+  session: SessionInfo;
+  cliSessionId: string;
+};
+
+async function listDesktopSessions(worktreePath: string): Promise<DesktopSessionResult[]> {
   const sessionsRoot = join(
     app.getPath("appData"),
     "Claude",
@@ -140,7 +145,7 @@ async function listDesktopSessions(worktreePath: string): Promise<SessionInfo[]>
     return [];
   }
 
-  const sessions: SessionInfo[] = [];
+  const results: DesktopSessionResult[] = [];
 
   for (const windowDir of windowDirs) {
     const windowPath = join(sessionsRoot, windowDir);
@@ -160,7 +165,7 @@ async function listDesktopSessions(worktreePath: string): Promise<SessionInfo[]>
         continue;
       }
 
-      const results = await Promise.all(
+      const entries = await Promise.all(
         sessionFiles.map(async (f) => {
           try {
             const raw = await readFile(join(projectPath, f), "utf-8");
@@ -171,31 +176,34 @@ async function listDesktopSessions(worktreePath: string): Promise<SessionInfo[]>
         })
       );
 
-      results.forEach((entry) => {
+      entries.forEach((entry) => {
         if (!entry) return;
         const matchesByCwd = entry.cwd === worktreePath;
         const matchesByWorktreePath = entry.worktreePath === worktreePath;
         if (!matchesByCwd && !matchesByWorktreePath) return;
 
-        sessions.push({
-          sessionId: entry.sessionId,
-          title: entry.title,
-          model: entry.model,
-          startedAt: new Date(entry.createdAt).toISOString(),
-          lastActiveAt: new Date(entry.lastActivityAt).toISOString(),
-          isArchived: entry.isArchived,
-          completedTurns: entry.completedTurns,
-          source: "desktop",
+        results.push({
+          session: {
+            sessionId: entry.sessionId,
+            title: entry.title,
+            model: entry.model,
+            startedAt: new Date(entry.createdAt).toISOString(),
+            lastActiveAt: new Date(entry.lastActivityAt).toISOString(),
+            isArchived: entry.isArchived,
+            completedTurns: entry.completedTurns,
+            source: "desktop",
+          },
+          cliSessionId: entry.cliSessionId,
         });
       });
     }
   }
 
-  return sessions;
+  return results;
 }
 
 function worktreePathToProjectDir(worktreePath: string): string {
-  return worktreePath.replace(/\//g, "-");
+  return worktreePath.replace(/[/.]/g, "-");
 }
 
 async function listCliSessions(worktreePath: string): Promise<SessionInfo[]> {
@@ -269,21 +277,154 @@ async function listCliSessions(worktreePath: string): Promise<SessionInfo[]> {
   return results.filter((s): s is SessionInfo => s !== null);
 }
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  toolUse: { name: string } | null;
+};
+
+async function findDesktopSessionMeta(sessionId: string): Promise<DesktopSessionFile | null> {
+  const sessionsRoot = join(app.getPath("appData"), "Claude", "claude-code-sessions");
+  let windowDirs: string[];
+  try {
+    windowDirs = await readdir(sessionsRoot);
+  } catch {
+    return null;
+  }
+
+  for (const windowDir of windowDirs) {
+    const windowPath = join(sessionsRoot, windowDir);
+    let projectDirs: string[];
+    try {
+      projectDirs = await readdir(windowPath);
+    } catch {
+      continue;
+    }
+    for (const projectDir of projectDirs) {
+      const filePath = join(windowPath, projectDir, `${sessionId}.json`);
+      try {
+        const raw = await readFile(filePath, "utf-8");
+        return JSON.parse(raw) as DesktopSessionFile;
+      } catch {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+function extractTextFromContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .filter((block: { type: string }) => block.type === "text")
+    .map((block: { text: string }) => block.text)
+    .join("\n");
+}
+
+function extractToolUseFromContent(content: unknown): { name: string } | null {
+  if (!Array.isArray(content)) return null;
+  const toolBlock = content.find((block: { type: string }) => block.type === "tool_use");
+  return toolBlock ? { name: toolBlock.name } : null;
+}
+
+async function readSessionMessages(jsonlPath: string): Promise<ChatMessage[]> {
+  const rl = createInterface({
+    input: createReadStream(jsonlPath),
+    crlfDelay: Infinity,
+  });
+
+  const messages: ChatMessage[] = [];
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line);
+      if (entry.isSidechain) continue;
+
+      if (entry.type === "user" && !entry.isMeta && entry.message?.content) {
+        const text = extractTextFromContent(entry.message.content);
+        // Skip tool_result messages (automatic responses to tool use)
+        const isToolResult =
+          Array.isArray(entry.message.content) &&
+          entry.message.content.some((b: { type: string }) => b.type === "tool_result");
+        if (isToolResult || !text.trim()) continue;
+
+        messages.push({
+          role: "user",
+          content: text,
+          timestamp: entry.timestamp,
+          toolUse: null,
+        });
+      } else if (entry.type === "assistant" && entry.message?.content) {
+        const text = extractTextFromContent(entry.message.content);
+        const toolUse = extractToolUseFromContent(entry.message.content);
+
+        // Skip messages that are only thinking blocks
+        if (!text.trim() && !toolUse) continue;
+
+        messages.push({
+          role: "assistant",
+          content: text,
+          timestamp: entry.timestamp,
+          toolUse,
+        });
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+
+  return messages;
+}
+
+async function getSessionHistory(
+  sessionId: string,
+  worktreePath: string
+): Promise<ChatMessage[]> {
+  // For desktop sessions, resolve to the linked CLI session JSONL
+  let cliSessionId = sessionId;
+  let cwd = worktreePath;
+
+  if (sessionId.startsWith("local_")) {
+    const meta = await findDesktopSessionMeta(sessionId);
+    if (meta) {
+      cliSessionId = meta.cliSessionId;
+      cwd = meta.cwd;
+    }
+  }
+
+  const projectDir = join(
+    homedir(),
+    ".claude",
+    "projects",
+    worktreePathToProjectDir(cwd)
+  );
+  const jsonlPath = join(projectDir, `${cliSessionId}.jsonl`);
+
+  try {
+    return await readSessionMessages(jsonlPath);
+  } catch {
+    return [];
+  }
+}
+
 async function listSessions(worktreePath: string): Promise<SessionInfo[]> {
-  const [desktopSessions, cliSessions] = await Promise.all([
+  const [desktopResults, cliSessions] = await Promise.all([
     listDesktopSessions(worktreePath),
     listCliSessions(worktreePath),
   ]);
 
-  // Deduplicate: desktop sessions link to CLI sessions via cliSessionId,
-  // but since we match by path and return both, just merge and sort.
   const seen = new Set<string>();
   const all: SessionInfo[] = [];
 
-  // Desktop sessions take priority
-  desktopSessions.forEach((s) => {
-    seen.add(s.sessionId);
-    all.push(s);
+  // Desktop sessions take priority; also mark their linked CLI session IDs as seen
+  desktopResults.forEach(({ session, cliSessionId }) => {
+    seen.add(session.sessionId);
+    seen.add(cliSessionId);
+    all.push(session);
   });
 
   cliSessions.forEach((s) => {
@@ -321,6 +462,13 @@ ipcMain.handle("worktrees:list", async (_event, projectPath: string) => {
 ipcMain.handle("sessions:list", async (_event, worktreePath: string) => {
   return listSessions(worktreePath);
 });
+
+ipcMain.handle(
+  "sessions:history",
+  async (_event, sessionId: string, worktreePath: string) => {
+    return getSessionHistory(sessionId, worktreePath);
+  }
+);
 
 ipcMain.handle("dialog:openDirectory", async () => {
   const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });

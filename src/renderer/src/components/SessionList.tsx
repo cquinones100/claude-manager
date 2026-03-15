@@ -5,9 +5,10 @@ type Props = {
   sessions: SessionInfo[];
   loading: boolean;
   onBack: () => void;
+  onSessionClick: (session: SessionInfo, worktree: Worktree) => void;
 };
 
-export default function SessionList({ worktree, sessions, loading, onBack }: Props) {
+export default function SessionList({ worktree, sessions, loading, onBack, onSessionClick }: Props) {
   const parts = worktree.path.split("/");
   const dirName = parts[parts.length - 1];
 
@@ -54,18 +55,23 @@ export default function SessionList({ worktree, sessions, loading, onBack }: Pro
       )}
 
       {sessions.map((session) => (
-        <SessionCard key={session.sessionId} session={session} />
+        <SessionCard
+          key={session.sessionId}
+          session={session}
+          onClick={() => onSessionClick(session, worktree)}
+        />
       ))}
     </div>
   );
 }
 
-function SessionCard({ session }: { session: SessionInfo }) {
+function SessionCard({ session, onClick }: { session: SessionInfo; onClick: () => void }) {
   const startDate = new Date(session.startedAt);
   const lastDate = new Date(session.lastActiveAt);
 
   return (
     <div
+      onClick={onClick}
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
@@ -74,7 +80,11 @@ function SessionCard({ session }: { session: SessionInfo }) {
         display: "flex",
         flexDirection: "column",
         gap: "8px",
+        cursor: "pointer",
+        transition: "border-color 0.15s",
       }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent-dim)")}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <SourceBadge source={session.source} />
