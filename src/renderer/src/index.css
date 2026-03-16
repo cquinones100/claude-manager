@@ -35,3 +35,13 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Hide all scrollbars but keep scroll functionality */
+*::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

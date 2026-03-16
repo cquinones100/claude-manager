@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Worktree, WorktreeGraph, CommitInfo } from "../App";
 
 type Props = {
@@ -8,7 +8,7 @@ type Props = {
 };
 
 const COMMIT_SPACING = 60;
-const LANE_HEIGHT = 60;
+const LANE_HEIGHT = 36;
 const MAIN_Y = 40;
 const PADDING_LEFT = 120;
 const PADDING_RIGHT = 40;
@@ -33,6 +33,42 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const branchesRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
+  const dragRef = useRef<{ active: boolean; startX: number; startY: number; scrollLeft: number; scrollTop: number; target: HTMLDivElement | null }>({
+    active: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0, target: null,
+  });
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d.active || !d.target) return;
+      d.target.scrollLeft = d.scrollLeft - (e.clientX - d.startX);
+      d.target.scrollTop = d.scrollTop - (e.clientY - d.startY);
+    };
+    const onMouseUp = () => {
+      const d = dragRef.current;
+      if (!d.active) return;
+      if (d.target) d.target.style.cursor = "grab";
+      d.active = false;
+      d.target = null;
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  const onDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("[data-clickable]")) return;
+    const el = e.currentTarget;
+    dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, target: el };
+    el.style.cursor = "grabbing";
+    e.preventDefault();
+  };
 
   const fetchGraph = useCallback(() => {
     return window.electronAPI
@@ -49,6 +85,17 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
     const interval = setInterval(fetchGraph, POLL_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchGraph]);
+
+  useEffect(() => {
+    if (!loading && graph && !hasScrolledRef.current) {
+      hasScrolledRef.current = true;
+      requestAnimationFrame(() => {
+        [mainRef.current, branchesRef.current].forEach((el) => {
+          if (el) el.scrollLeft = el.scrollWidth;
+        });
+      });
+    }
+  }, [loading, graph]);
 
   if (loading) {
     return (
@@ -80,10 +127,21 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
 
   const mainShaToIndex = new Map(mainCommits.map((c, i) => [c.sha, i]));
 
+  // Sort branches so most recently active ones are closest to the main line
+  const sortedBranches = [...graph.branches].sort((a, b) => {
+    const latestDate = (branch: typeof a) => {
+      if (branch.commits.length > 0) {
+        return Math.max(...branch.commits.map((c) => new Date(c.authorDate).getTime()));
+      }
+      const baseIdx = mainShaToIndex.get(branch.mergeBaseSha);
+      if (baseIdx !== undefined) return new Date(mainCommits[baseIdx].authorDate).getTime();
+      return 0;
+    };
+    return latestDate(b) - latestDate(a);
+  });
+
   const svgWidth =
     PADDING_LEFT + mainCommits.length * COMMIT_SPACING + PADDING_RIGHT;
-  const svgHeight = MAIN_Y + (graph.branches.length + 1) * LANE_HEIGHT + 20;
-
   const commitX = (index: number) => PADDING_LEFT + index * COMMIT_SPACING;
 
   const showCommitTooltip = (commit: CommitInfo, x: number, y: number) =>
@@ -92,166 +150,211 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
     setTooltip({ kind: "branch", label, preview, x, y });
   const hideTooltip = () => setTooltip(null);
 
+  const mainHeaderHeight = MAIN_Y + 20;
+  const branchesHeight = sortedBranches.length * LANE_HEIGHT + 20;
+
   return (
-    <div style={{ overflowX: "auto", overflowY: "auto", position: "relative" }}>
-      <svg
-        width={svgWidth}
-        height={svgHeight}
-        style={{ display: "block", minWidth: "100%" }}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+      {/* Pinned main branch header */}
+      <div
+        style={{
+          overflowX: "auto",
+          overflowY: "hidden",
+          flexShrink: 0,
+          borderBottom: "1px solid var(--border)",
+          background: "var(--bg)",
+          zIndex: 1,
+          cursor: "grab",
+        }}
+        onMouseDown={onDragStart}
+        onScroll={(e) => {
+          if (branchesRef.current) branchesRef.current.scrollLeft = e.currentTarget.scrollLeft;
+        }}
+        ref={mainRef}
       >
-        {/* Main branch line */}
-        <line
-          x1={commitX(0)}
-          y1={MAIN_Y}
-          x2={commitX(mainCommits.length - 1)}
-          y2={MAIN_Y}
-          stroke="var(--text-muted)"
-          strokeWidth={2}
-          style={{ pointerEvents: "none" }}
-        />
-
-        {/* Main branch label */}
-        <text
-          x={PADDING_LEFT - 12}
-          y={MAIN_Y + 4}
-          textAnchor="end"
-          fill="var(--accent)"
-          fontSize={12}
-          fontWeight={600}
-          fontFamily="var(--font-mono)"
+        <svg
+          width={svgWidth}
+          height={mainHeaderHeight}
+          style={{ display: "block", minWidth: "100%" }}
         >
-          {graph.defaultBranch}
-        </text>
+          {/* Main branch line */}
+          <line
+            x1={commitX(0)}
+            y1={MAIN_Y}
+            x2={commitX(mainCommits.length - 1)}
+            y2={MAIN_Y}
+            stroke="var(--text-muted)"
+            strokeWidth={2}
+            style={{ pointerEvents: "none" }}
+          />
 
-        {/* Main branch commit dots */}
-        {mainCommits.map((commit, i) => (
-          <g key={commit.sha}>
-            <circle
-              cx={commitX(i)}
-              cy={MAIN_Y}
-              r={16}
-              fill="transparent"
-              style={{ cursor: "pointer" }}
-              onClick={() => onCommitClick(commit.sha)}
-              onMouseEnter={() => showCommitTooltip(commit, commitX(i), MAIN_Y)}
-              onMouseLeave={hideTooltip}
-            />
-            <circle
-              cx={commitX(i)}
-              cy={MAIN_Y}
-              r={DOT_RADIUS}
-              fill="var(--accent)"
-              stroke="var(--bg)"
-              strokeWidth={2}
-              style={{ pointerEvents: "none" }}
-            />
-          </g>
-        ))}
+          {/* Main branch label */}
+          <text
+            x={PADDING_LEFT - 12}
+            y={MAIN_Y + 4}
+            textAnchor="end"
+            fill="var(--accent)"
+            fontSize={12}
+            fontWeight={600}
+            fontFamily="var(--font-mono)"
+          >
+            {graph.defaultBranch}
+          </text>
 
-        {/* Branch lines */}
-        {graph.branches.map((branch, branchIdx) => {
-          const color = BRANCH_COLORS[branchIdx % BRANCH_COLORS.length];
-          const laneY = MAIN_Y + (branchIdx + 1) * LANE_HEIGHT;
-
-          // Find where this branch forks from main
-          let forkIndex = mainShaToIndex.get(branch.mergeBaseSha);
-          // If the merge base is older than our visible commits, pin to the leftmost
-          if (forkIndex === undefined) forkIndex = 0;
-
-          const forkX = commitX(forkIndex);
-
-          // Branch commits start after the fork point
-          const branchCommits = [...branch.commits].reverse();
-
-          const labelX =
-            branchCommits.length > 0
-              ? forkX + 30 + branchCommits.length * COMMIT_SPACING
-              : forkX + 70;
-
-          return (
-            <g key={branch.worktree.path}>
-              {/* Fork curve from main down to branch lane */}
-              <path
-                d={`M ${forkX} ${MAIN_Y} Q ${forkX} ${laneY} ${forkX + 30} ${laneY}`}
-                fill="none"
-                stroke={color}
+          {/* Main branch commit dots */}
+          {mainCommits.map((commit, i) => (
+            <g key={commit.sha}>
+              <circle
+                cx={commitX(i)}
+                cy={MAIN_Y}
+                r={16}
+                fill="transparent"
+                style={{ cursor: "pointer" }}
+                data-clickable
+                onClick={() => onCommitClick(commit.sha)}
+                onMouseEnter={() => showCommitTooltip(commit, commitX(i), MAIN_Y)}
+                onMouseLeave={hideTooltip}
+              />
+              <circle
+                cx={commitX(i)}
+                cy={MAIN_Y}
+                r={DOT_RADIUS}
+                fill="var(--accent)"
+                stroke="var(--bg)"
                 strokeWidth={2}
                 style={{ pointerEvents: "none" }}
               />
+            </g>
+          ))}
+        </svg>
+      </div>
 
-              {/* Branch horizontal line */}
-              {branchCommits.length > 0 && (
-                <line
-                  x1={forkX + 30}
-                  y1={laneY}
-                  x2={forkX + 30 + (branchCommits.length - 1) * COMMIT_SPACING}
-                  y2={laneY}
+      {/* Scrollable branches area */}
+      <div
+        style={{
+          overflowX: "auto",
+          overflowY: "auto",
+          flex: 1,
+          position: "relative",
+          cursor: "grab",
+        }}
+        onMouseDown={onDragStart}
+        onScroll={(e) => {
+          if (mainRef.current) mainRef.current.scrollLeft = e.currentTarget.scrollLeft;
+        }}
+        ref={branchesRef}
+      >
+        <svg
+          width={svgWidth}
+          height={branchesHeight}
+          style={{ display: "block", minWidth: "100%" }}
+        >
+          {/* Branch lines */}
+          {sortedBranches.map((branch, branchIdx) => {
+            const color = BRANCH_COLORS[branchIdx % BRANCH_COLORS.length];
+            const laneY = (branchIdx + 1) * LANE_HEIGHT;
+
+            // Find where this branch forks from main
+            let forkIndex = mainShaToIndex.get(branch.mergeBaseSha);
+            // If the merge base is older than our visible commits, pin to the leftmost
+            if (forkIndex === undefined) forkIndex = 0;
+
+            const forkX = commitX(forkIndex);
+
+            // Branch commits start after the fork point
+            const branchCommits = [...branch.commits].reverse();
+
+            const labelX =
+              branchCommits.length > 0
+                ? forkX + 30 + (branchCommits.length - 1) * COMMIT_SPACING + 16
+                : forkX + 46;
+
+            return (
+              <g key={branch.worktree.path}>
+                {/* Fork line from top of branches area down to branch lane */}
+                <path
+                  d={`M ${forkX} 0 Q ${forkX} ${laneY} ${forkX + 30} ${laneY}`}
+                  fill="none"
                   stroke={color}
                   strokeWidth={2}
                   style={{ pointerEvents: "none" }}
                 />
-              )}
 
-              {/* If no commits, still draw a short line to the label */}
-              {branchCommits.length === 0 && (
-                <line
-                  x1={forkX + 30}
-                  y1={laneY}
-                  x2={forkX + 60}
-                  y2={laneY}
-                  stroke={color}
-                  strokeWidth={2}
-                />
-              )}
-
-              {/* Branch commit dots */}
-              {branchCommits.map((commit, i) => (
-                <g key={commit.sha}>
-                  <circle
-                    cx={forkX + 30 + i * COMMIT_SPACING}
-                    cy={laneY}
-                    r={16}
-                    fill="transparent"
-                    style={{ cursor: "pointer" }}
-                    onClick={() => onCommitClick(commit.sha)}
-                    onMouseEnter={() =>
-                      showCommitTooltip(commit, forkX + 30 + i * COMMIT_SPACING, laneY)
-                    }
-                    onMouseLeave={hideTooltip}
-                  />
-                  <circle
-                    cx={forkX + 30 + i * COMMIT_SPACING}
-                    cy={laneY}
-                    r={DOT_RADIUS - 1}
-                    fill={color}
-                    stroke="var(--bg)"
+                {/* Branch horizontal line */}
+                {branchCommits.length > 0 && (
+                  <line
+                    x1={forkX + 30}
+                    y1={laneY}
+                    x2={forkX + 30 + (branchCommits.length - 1) * COMMIT_SPACING}
+                    y2={laneY}
+                    stroke={color}
                     strokeWidth={2}
                     style={{ pointerEvents: "none" }}
                   />
-                </g>
-              ))}
+                )}
 
-              {/* Branch label (clickable, hoverable) */}
-              <BranchLabel
-                x={labelX}
-                y={laneY}
-                branch={branch.worktree.branch}
-                color={color}
-                onClick={() => onWorktreeClick(branch.worktree)}
-                onMouseEnter={() =>
-                  showBranchTooltip(
-                    branch.worktree.branch ?? "detached HEAD",
-                    branch.worktree.sessionPreview,
-                    labelX,
-                    laneY
-                  )
-                }
-                onMouseLeave={hideTooltip}
-              />
-            </g>
-          );
-        })}
-      </svg>
+                {/* If no commits, still draw a short line to the label */}
+                {branchCommits.length === 0 && (
+                  <line
+                    x1={forkX + 30}
+                    y1={laneY}
+                    x2={forkX + 60}
+                    y2={laneY}
+                    stroke={color}
+                    strokeWidth={2}
+                  />
+                )}
+
+                {/* Branch commit dots */}
+                {branchCommits.map((commit, i) => (
+                  <g key={commit.sha}>
+                    <circle
+                      cx={forkX + 30 + i * COMMIT_SPACING}
+                      cy={laneY}
+                      r={16}
+                      fill="transparent"
+                      style={{ cursor: "pointer" }}
+                      data-clickable
+                      onClick={() => onCommitClick(commit.sha)}
+                      onMouseEnter={() =>
+                        showCommitTooltip(commit, forkX + 30 + i * COMMIT_SPACING, laneY + mainHeaderHeight)
+                      }
+                      onMouseLeave={hideTooltip}
+                    />
+                    <circle
+                      cx={forkX + 30 + i * COMMIT_SPACING}
+                      cy={laneY}
+                      r={DOT_RADIUS - 1}
+                      fill={color}
+                      stroke="var(--bg)"
+                      strokeWidth={2}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  </g>
+                ))}
+
+                {/* Branch label (clickable, hoverable) */}
+                <BranchLabel
+                  x={labelX}
+                  y={laneY}
+                  branch={branch.worktree.branch}
+                  color={color}
+                  onClick={() => onWorktreeClick(branch.worktree)}
+                  onMouseEnter={() =>
+                    showBranchTooltip(
+                      branch.worktree.branch ?? "detached HEAD",
+                      branch.worktree.sessionPreview,
+                      labelX,
+                      laneY + mainHeaderHeight
+                    )
+                  }
+                  onMouseLeave={hideTooltip}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
 
       {tooltip && (
         <div
@@ -268,6 +371,7 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
             color: "var(--text)",
             whiteSpace: "nowrap",
             pointerEvents: "none",
+            zIndex: 10,
           }}
         >
           {tooltip.kind === "commit" ? (
@@ -312,6 +416,7 @@ function BranchLabel({
   return (
     <g
       style={{ cursor: "pointer" }}
+      data-clickable
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
