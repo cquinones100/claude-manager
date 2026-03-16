@@ -36,6 +36,34 @@ type ChatMessage = {
   toolUse: { name: string } | null;
 };
 
+type CommitInfo = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  authorDate: string;
+};
+
+type BranchLine = {
+  worktree: Worktree;
+  mergeBaseSha: string;
+  commits: CommitInfo[];
+};
+
+type WorktreeGraph = {
+  defaultBranch: string;
+  mainCommits: CommitInfo[];
+  branches: BranchLine[];
+};
+
+type CommitDetail = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  body: string;
+  authorName: string;
+  authorDate: string;
+};
+
 contextBridge.exposeInMainWorld("electronAPI", {
   listWorktrees: (projectPath: string): Promise<Worktree[]> =>
     ipcRenderer.invoke("worktrees:list", projectPath),
@@ -57,6 +85,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("sessions:updated", handler);
     };
   },
+  getWorktreeGraph: (projectPath: string): Promise<WorktreeGraph> =>
+    ipcRenderer.invoke("worktrees:graph", projectPath),
+  getCommitDetail: (projectPath: string, sha: string): Promise<CommitDetail> =>
+    ipcRenderer.invoke("commits:detail", projectPath, sha),
   openSessionInTerminal: (sessionId: string, worktreePath: string): Promise<void> =>
     ipcRenderer.invoke("session:openInTerminal", sessionId, worktreePath),
   openSessionInDesktop: (): Promise<void> =>

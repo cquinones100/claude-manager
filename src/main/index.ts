@@ -565,8 +565,141 @@ function createWindow(): void {
   }
 }
 
+type CommitInfo = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  authorDate: string;
+};
+
+type BranchLine = {
+  worktree: Worktree;
+  mergeBaseSha: string;
+  commits: CommitInfo[];
+};
+
+type WorktreeGraph = {
+  defaultBranch: string;
+  mainCommits: CommitInfo[];
+  branches: BranchLine[];
+};
+
+function parseGitLog(output: string): CommitInfo[] {
+  return output
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, shortSha, authorDate, ...subjectParts] = line.split("\t");
+      return { sha, shortSha, authorDate, subject: subjectParts.join("\t") };
+    });
+}
+
+async function detectDefaultBranch(projectPath: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["symbolic-ref", "refs/remotes/origin/HEAD"],
+      { cwd: projectPath }
+    );
+    return stdout.trim().replace("refs/remotes/origin/", "");
+  } catch {
+    // Fall back: check if main or master exists
+    try {
+      await execFileAsync("git", ["rev-parse", "--verify", "main"], { cwd: projectPath });
+      return "main";
+    } catch {
+      try {
+        await execFileAsync("git", ["rev-parse", "--verify", "master"], { cwd: projectPath });
+        return "master";
+      } catch {
+        return "main";
+      }
+    }
+  }
+}
+
+async function getWorktreeGraph(projectPath: string): Promise<WorktreeGraph> {
+  const [worktrees, defaultBranch] = await Promise.all([
+    listWorktrees(projectPath),
+    detectDefaultBranch(projectPath),
+  ]);
+
+  const { stdout: logOutput } = await execFileAsync(
+    "git",
+    ["log", "--first-parent", "-n", "50", `--format=%H\t%h\t%aI\t%s`, defaultBranch],
+    { cwd: projectPath }
+  );
+  const mainCommits = parseGitLog(logOutput);
+
+  const nonMainWorktrees = worktrees.filter(
+    (wt) => !wt.isBare && wt.branch !== defaultBranch
+  );
+
+  const branches = await Promise.all(
+    nonMainWorktrees.map(async (wt) => {
+      const ref = wt.branch ?? wt.head;
+      try {
+        const { stdout: mergeBaseOut } = await execFileAsync(
+          "git",
+          ["merge-base", defaultBranch, ref],
+          { cwd: projectPath }
+        );
+        const mergeBaseSha = mergeBaseOut.trim();
+
+        const { stdout: branchLog } = await execFileAsync(
+          "git",
+          ["log", "--first-parent", `--format=%H\t%h\t%aI\t%s`, `${mergeBaseSha}..${ref}`],
+          { cwd: projectPath }
+        );
+        const commits = parseGitLog(branchLog);
+
+        return { worktree: wt, mergeBaseSha, commits };
+      } catch {
+        return { worktree: wt, mergeBaseSha: "", commits: [] };
+      }
+    })
+  );
+
+  return { defaultBranch, mainCommits, branches };
+}
+
+type CommitDetail = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  body: string;
+  authorName: string;
+  authorDate: string;
+};
+
+async function getCommitDetail(projectPath: string, sha: string): Promise<CommitDetail> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["show", "--no-patch", `--format=%H%n%h%n%s%n%aN%n%aI%n%b`, sha],
+    { cwd: projectPath }
+  );
+  const lines = stdout.trimEnd().split("\n");
+  return {
+    sha: lines[0],
+    shortSha: lines[1],
+    subject: lines[2],
+    authorName: lines[3],
+    authorDate: lines[4],
+    body: lines.slice(5).join("\n").trim(),
+  };
+}
+
 ipcMain.handle("worktrees:list", async (_event, projectPath: string) => {
   return listWorktrees(projectPath);
+});
+
+ipcMain.handle("worktrees:graph", async (_event, projectPath: string) => {
+  return getWorktreeGraph(projectPath);
+});
+
+ipcMain.handle("commits:detail", async (_event, projectPath: string, sha: string) => {
+  return getCommitDetail(projectPath, sha);
 });
 
 ipcMain.handle("sessions:list", async (_event, worktreePath: string) => {

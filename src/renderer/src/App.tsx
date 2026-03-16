@@ -1,8 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import PathBar from "./components/PathBar";
 import WorktreeList from "./components/WorktreeList";
+import WorktreeTree from "./components/WorktreeTree";
+import ViewToggle from "./components/ViewToggle";
 import SessionList from "./components/SessionList";
 import ChatHistory from "./components/ChatHistory";
+import CommitDetailView from "./components/CommitDetailView";
 import EmptyState from "./components/EmptyState";
 
 export type ClaudeSession = {
@@ -41,6 +44,34 @@ export type ChatMessage = {
   toolUse: { name: string } | null;
 };
 
+export type CommitInfo = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  authorDate: string;
+};
+
+export type BranchLine = {
+  worktree: Worktree;
+  mergeBaseSha: string;
+  commits: CommitInfo[];
+};
+
+export type WorktreeGraph = {
+  defaultBranch: string;
+  mainCommits: CommitInfo[];
+  branches: BranchLine[];
+};
+
+export type CommitDetail = {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  body: string;
+  authorName: string;
+  authorDate: string;
+};
+
 type State =
   | { status: "idle" }
   | { status: "loading" }
@@ -50,7 +81,8 @@ type State =
 type View =
   | { kind: "list" }
   | { kind: "sessions"; worktree: Worktree; sessions: SessionInfo[]; loading: boolean }
-  | { kind: "chat"; worktree: Worktree; session: SessionInfo; messages: ChatMessage[]; loading: boolean };
+  | { kind: "chat"; worktree: Worktree; session: SessionInfo; messages: ChatMessage[]; loading: boolean }
+  | { kind: "commit"; commit: CommitDetail; loading: boolean };
 
 declare global {
   interface Window {
@@ -59,6 +91,8 @@ declare global {
       listSessions: (worktreePath: string) => Promise<SessionInfo[]>;
       getSessionHistory: (sessionId: string, worktreePath: string) => Promise<ChatMessage[]>;
       openDirectory: () => Promise<string | null>;
+      getWorktreeGraph: (projectPath: string) => Promise<WorktreeGraph>;
+      getCommitDetail: (projectPath: string, sha: string) => Promise<CommitDetail>;
       watchSession: (sessionId: string, worktreePath: string) => Promise<boolean>;
       unwatchSession: () => Promise<boolean>;
       onSessionUpdate: (callback: (messages: ChatMessage[]) => void) => () => void;
@@ -72,6 +106,7 @@ export default function App() {
   const [projectPath, setProjectPath] = useState("");
   const [state, setState] = useState<State>({ status: "idle" });
   const [view, setView] = useState<View>({ kind: "list" });
+  const [viewMode, setViewMode] = useState<"list" | "tree">("tree");
 
   const load = useCallback(async (path: string) => {
     if (!path.trim()) return;
@@ -132,6 +167,19 @@ export default function App() {
     }
   }, []);
 
+  const handleCommitClick = useCallback(
+    async (sha: string) => {
+      setView({ kind: "commit", commit: { sha, shortSha: sha.slice(0, 7), subject: "", body: "", authorName: "", authorDate: "" }, loading: true });
+      try {
+        const commit = await window.electronAPI.getCommitDetail(projectPath, sha);
+        setView({ kind: "commit", commit, loading: false });
+      } catch {
+        setView({ kind: "commit", commit: { sha, shortSha: sha.slice(0, 7), subject: "Failed to load commit", body: "", authorName: "", authorDate: "" }, loading: false });
+      }
+    },
+    [projectPath]
+  );
+
   const handleBackToList = useCallback(() => {
     setView({ kind: "list" });
   }, []);
@@ -181,7 +229,18 @@ export default function App() {
         {state.status === "loading" && <EmptyState message="Loading worktrees…" />}
         {state.status === "error" && <EmptyState message={state.message} isError />}
         {state.status === "success" && view.kind === "list" && (
-          <WorktreeList worktrees={state.worktrees} onWorktreeClick={handleWorktreeClick} />
+          <>
+            <ViewToggle mode={viewMode} onToggle={setViewMode} />
+            {viewMode === "list" ? (
+              <WorktreeList worktrees={state.worktrees} onWorktreeClick={handleWorktreeClick} />
+            ) : (
+              <WorktreeTree
+                projectPath={projectPath}
+                onWorktreeClick={handleWorktreeClick}
+                onCommitClick={handleCommitClick}
+              />
+            )}
+          </>
         )}
         {view.kind === "sessions" && (
           <SessionList
@@ -191,6 +250,13 @@ export default function App() {
             onBack={handleBackToList}
             onSessionClick={handleSessionClick}
             onOpenSession={handleOpenSession}
+          />
+        )}
+        {view.kind === "commit" && (
+          <CommitDetailView
+            commit={view.commit}
+            loading={view.loading}
+            onBack={handleBackToList}
           />
         )}
         {view.kind === "chat" && (

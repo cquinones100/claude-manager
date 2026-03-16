@@ -37,7 +37,19 @@ async function loadRepo() {
   const input = page.getByPlaceholder("Path to git project");
   await input.fill(fixture.repoPath);
   await page.getByRole("button", { name: "Load" }).click();
+  // Default view is tree; switch to list for tests that expect the list view
+  await expect(page.getByRole("button", { name: "List" })).toBeVisible();
+  await page.getByRole("button", { name: "List" }).click();
   await expect(page.getByText("2 worktrees")).toBeVisible();
+}
+
+async function loadRepoTree() {
+  const input = page.getByPlaceholder("Path to git project");
+  await input.fill(fixture.repoPath);
+  await page.getByRole("button", { name: "Load" }).click();
+  // Tree is the default view; wait for it to render
+  await expect(page.locator("text=main")).toBeVisible();
+  await expect(page.locator("text=claude/test-worktree")).toBeVisible();
 }
 
 const worktreeCardLocator = () =>
@@ -130,6 +142,8 @@ test("submits path on Enter key", async () => {
   await input.fill(fixture.repoPath);
   await input.press("Enter");
 
+  await expect(page.getByRole("button", { name: "List" })).toBeVisible();
+  await page.getByRole("button", { name: "List" }).click();
   await expect(page.getByText("2 worktrees")).toBeVisible();
 });
 
@@ -194,4 +208,60 @@ test("live updates include new assistant messages", async () => {
 
   await expect(page.getByText("what about snapshot tests?")).toBeVisible({ timeout: 5000 });
   await expect(page.getByText("Snapshot tests would be great for this component.")).toBeVisible();
+});
+
+test("tree view shows main branch and worktree branch", async () => {
+  await loadRepoTree();
+  // SVG should contain the main label and the worktree branch label
+  await expect(page.locator("svg text", { hasText: "main" })).toBeVisible();
+  await expect(page.locator("svg text", { hasText: "claude/test-worktree" })).toBeVisible();
+});
+
+test("tree view shows commit tooltips on hover", async () => {
+  await loadRepoTree();
+  // Hover over a commit dot (the invisible hit area circle) on the main line
+  const circles = page.locator("svg circle[fill='transparent']");
+  await circles.first().hover();
+  await expect(page.getByText("initial commit")).toBeVisible();
+});
+
+test("tree view navigates to commit detail on click", async () => {
+  await loadRepoTree();
+  const circles = page.locator("svg circle[fill='transparent']");
+  await circles.first().click();
+  // Should show the commit detail view with subject and author
+  await expect(page.getByText("initial commit")).toBeVisible();
+  await expect(page.getByText("Test")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+});
+
+test("tree view commit detail back button returns to tree", async () => {
+  await loadRepoTree();
+  const circles = page.locator("svg circle[fill='transparent']");
+  await circles.first().click();
+  await expect(page.getByRole("button", { name: "Back" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.locator("svg text", { hasText: "main" })).toBeVisible();
+});
+
+test("tree view branch label navigates to sessions", async () => {
+  await loadRepoTree();
+  // Click the claude/test-worktree branch label in the SVG
+  await page.locator("svg text", { hasText: "claude/test-worktree" }).click();
+  await expect(page.getByText(/sessions in/i)).toBeVisible();
+});
+
+test("toggle switches between list and tree views", async () => {
+  await loadRepoTree();
+  // Currently in tree view — SVG should be present
+  await expect(page.locator("svg")).toBeVisible();
+
+  // Switch to list
+  await page.getByRole("button", { name: "List" }).click();
+  await expect(page.getByText("2 worktrees")).toBeVisible();
+
+  // Switch back to tree
+  await page.getByRole("button", { name: "Tree", exact: true }).click();
+  await expect(page.locator("svg text", { hasText: "main" })).toBeVisible();
 });

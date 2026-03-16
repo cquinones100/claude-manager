@@ -24,6 +24,8 @@ src/
         PathBar.tsx              — path input, Browse (native dialog), Load button
         WorktreeCard.tsx         — single worktree row: branch pill, SHA, locked badge, clickable
         WorktreeList.tsx         — maps worktrees to WorktreeCard
+        WorktreeTree.tsx         — SVG tree visualization: main as horizontal line, branches forking off
+        ViewToggle.tsx           — list/tree view mode toggle
         SessionList.tsx          — session list for a selected worktree, clickable
         ChatHistory.tsx          — chat conversation view (user right, assistant left)
         EmptyState.tsx           — idle / loading / error placeholder
@@ -41,6 +43,7 @@ src/
 | `session:openInDesktop` | renderer → main | — | `void` |
 | `sessions:watch` | renderer → main | `sessionId: string, worktreePath: string` | `boolean` |
 | `sessions:unwatch` | renderer → main | — | `boolean` |
+| `worktrees:graph` | renderer → main | `projectPath: string` | `WorktreeGraph` |
 | `sessions:updated` | main → renderer | — | `ChatMessage[]` |
 
 ## Types
@@ -80,6 +83,15 @@ type ChatMessage = {
   toolUse: { name: string } | null;
 };
 ```
+
+## Tree View
+
+The tree view shows main as a horizontal line with commit dots (oldest left,
+newest right). Worktree branches fork off at their merge-base commit and run
+as parallel horizontal lines below. Rendered with inline SVG — no external
+chart library. Branch labels are clickable and navigate to the sessions view.
+The `worktrees:graph` IPC channel runs `git log` on the default branch and
+`git merge-base` per worktree branch to build the graph data.
 
 ## Claude Session Association
 
