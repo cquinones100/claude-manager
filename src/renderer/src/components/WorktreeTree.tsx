@@ -9,7 +9,7 @@ type Props = {
 
 const COMMIT_SPACING = 60;
 const LANE_HEIGHT = 36;
-const MAIN_Y = 40;
+const MAIN_Y = 56;
 const PADDING_LEFT = 120;
 const PADDING_RIGHT = 40;
 const DOT_RADIUS = 5;
@@ -140,9 +140,23 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
     return latestDate(b) - latestDate(a);
   });
 
-  const svgWidth =
-    PADDING_LEFT + mainCommits.length * COMMIT_SPACING + PADDING_RIGHT;
   const commitX = (index: number) => PADDING_LEFT + index * COMMIT_SPACING;
+
+  // Calculate max right edge including branch labels
+  const mainLineRight = PADDING_LEFT + mainCommits.length * COMMIT_SPACING + PADDING_RIGHT;
+  const maxBranchRight = sortedBranches.reduce((max, branch) => {
+    let forkIndex = mainShaToIndex.get(branch.mergeBaseSha);
+    if (forkIndex === undefined) forkIndex = 0;
+    const forkX = commitX(forkIndex);
+    const branchCommits = branch.commits.length;
+    const labelX = branchCommits > 0
+      ? forkX + 30 + (branchCommits - 1) * COMMIT_SPACING + 16
+      : forkX + 46;
+    const label = branch.worktree.branch ?? "detached HEAD";
+    const labelWidth = Math.max(label.length * 7.5 + 16, 60);
+    return Math.max(max, labelX + labelWidth + PADDING_RIGHT);
+  }, 0);
+  const svgWidth = Math.max(mainLineRight, maxBranchRight);
 
   const showCommitTooltip = (commit: CommitInfo, x: number, y: number) =>
     setTooltip({ kind: "commit", commit, x, y });
@@ -201,6 +215,27 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
             {graph.defaultBranch}
           </text>
 
+          {/* Date labels (only when date changes) */}
+          {mainCommits.map((commit, i) => {
+            const date = new Date(commit.authorDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            const prevDate = i > 0 ? new Date(mainCommits[i - 1].authorDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+            if (date === prevDate) return null;
+            return (
+              <text
+                key={`date-${commit.sha}`}
+                x={commitX(i)}
+                y={MAIN_Y - 20}
+                textAnchor="middle"
+                fill="var(--text-muted)"
+                fontSize={10}
+                fontFamily="var(--font-mono)"
+                style={{ pointerEvents: "none" }}
+              >
+                {date}
+              </text>
+            );
+          })}
+
           {/* Main branch commit dots */}
           {mainCommits.map((commit, i) => (
             <g key={commit.sha}>
@@ -249,29 +284,18 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
           height={branchesHeight}
           style={{ display: "block", minWidth: "100%" }}
         >
-          {/* Branch lines */}
+          {/* Branch lines and dots (rendered first, behind labels) */}
           {sortedBranches.map((branch, branchIdx) => {
             const color = BRANCH_COLORS[branchIdx % BRANCH_COLORS.length];
             const laneY = (branchIdx + 1) * LANE_HEIGHT;
 
-            // Find where this branch forks from main
             let forkIndex = mainShaToIndex.get(branch.mergeBaseSha);
-            // If the merge base is older than our visible commits, pin to the leftmost
             if (forkIndex === undefined) forkIndex = 0;
-
             const forkX = commitX(forkIndex);
-
-            // Branch commits start after the fork point
             const branchCommits = [...branch.commits].reverse();
-
-            const labelX =
-              branchCommits.length > 0
-                ? forkX + 30 + (branchCommits.length - 1) * COMMIT_SPACING + 16
-                : forkX + 46;
 
             return (
               <g key={branch.worktree.path}>
-                {/* Fork line from top of branches area down to branch lane */}
                 <path
                   d={`M ${forkX} 0 Q ${forkX} ${laneY} ${forkX + 30} ${laneY}`}
                   fill="none"
@@ -280,7 +304,6 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
                   style={{ pointerEvents: "none" }}
                 />
 
-                {/* Branch horizontal line */}
                 {branchCommits.length > 0 && (
                   <line
                     x1={forkX + 30}
@@ -293,7 +316,6 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
                   />
                 )}
 
-                {/* If no commits, still draw a short line to the label */}
                 {branchCommits.length === 0 && (
                   <line
                     x1={forkX + 30}
@@ -305,7 +327,6 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
                   />
                 )}
 
-                {/* Branch commit dots */}
                 {branchCommits.map((commit, i) => (
                   <g key={commit.sha}>
                     <circle
@@ -332,25 +353,43 @@ export default function WorktreeTree({ projectPath, onWorktreeClick, onCommitCli
                     />
                   </g>
                 ))}
-
-                {/* Branch label (clickable, hoverable) */}
-                <BranchLabel
-                  x={labelX}
-                  y={laneY}
-                  branch={branch.worktree.branch}
-                  color={color}
-                  onClick={() => onWorktreeClick(branch.worktree)}
-                  onMouseEnter={() =>
-                    showBranchTooltip(
-                      branch.worktree.branch ?? "detached HEAD",
-                      branch.worktree.sessionPreview,
-                      labelX,
-                      laneY + mainHeaderHeight
-                    )
-                  }
-                  onMouseLeave={hideTooltip}
-                />
               </g>
+            );
+          })}
+
+          {/* Branch labels (rendered last, always on top) */}
+          {sortedBranches.map((branch, branchIdx) => {
+            const color = BRANCH_COLORS[branchIdx % BRANCH_COLORS.length];
+            const laneY = (branchIdx + 1) * LANE_HEIGHT;
+
+            let forkIndex = mainShaToIndex.get(branch.mergeBaseSha);
+            if (forkIndex === undefined) forkIndex = 0;
+            const forkX = commitX(forkIndex);
+            const branchCommitCount = branch.commits.length;
+
+            const labelX =
+              branchCommitCount > 0
+                ? forkX + 30 + (branchCommitCount - 1) * COMMIT_SPACING + 16
+                : forkX + 46;
+
+            return (
+              <BranchLabel
+                key={branch.worktree.path}
+                x={labelX}
+                y={laneY}
+                branch={branch.worktree.branch}
+                color={color}
+                onClick={() => onWorktreeClick(branch.worktree)}
+                onMouseEnter={() =>
+                  showBranchTooltip(
+                    branch.worktree.branch ?? "detached HEAD",
+                    branch.worktree.sessionPreview,
+                    labelX,
+                    laneY + mainHeaderHeight
+                  )
+                }
+                onMouseLeave={hideTooltip}
+              />
             );
           })}
         </svg>
@@ -421,6 +460,14 @@ function BranchLabel({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      <rect
+        x={x}
+        y={y - height / 2}
+        width={width}
+        height={height}
+        rx={4}
+        fill="var(--bg)"
+      />
       <rect
         x={x}
         y={y - height / 2}
