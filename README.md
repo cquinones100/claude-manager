@@ -2,6 +2,10 @@
 
 A desktop app for browsing git worktrees and the Claude Code sessions running inside them.
 
+<img src="screenshots/tree.png" width="50%" alt="Tree view showing worktree branches forking off main">
+
+<img src="screenshots/sessions.png" width="50%" alt="Sessions view showing Claude Code sessions for a worktree">
+
 ## Why this exists
 
 Claude Code can work in git worktrees. When you ask Claude Desktop to tackle a task, it often creates a new worktree off your current branch and does its work there in isolation. If you're using the CLI, you might create worktrees yourself and run Claude Code inside them. Either way, you end up with a growing list of worktrees, each potentially containing one or more Claude conversations, and no easy way to see what's happening across all of them.
