@@ -155,7 +155,17 @@ async function listWorktrees(projectPath: string): Promise<Worktree[]> {
 
   return worktrees.map((wt) => {
     const entry = claudeByPath.get(wt.path);
-    const desktopSession = desktopByPath.get(wt.path);
+    // Match desktop sessions from both the worktree root and subdirectories
+    let desktopSession = desktopByPath.get(wt.path);
+    if (!desktopSession) {
+      for (const [sessionPath, session] of desktopByPath) {
+        if (sessionPath.startsWith(wt.path + "/")) {
+          if (!desktopSession || session.lastActivityAt > desktopSession.lastActivityAt) {
+            desktopSession = session;
+          }
+        }
+      }
+    }
 
     return {
       ...wt,
@@ -248,8 +258,8 @@ async function listDesktopSessions(worktreePath: string): Promise<DesktopSession
 
       entries.forEach((entry) => {
         if (!entry) return;
-        const matchesByCwd = entry.cwd === worktreePath;
-        const matchesByWorktreePath = entry.worktreePath === worktreePath;
+        const matchesByCwd = entry.cwd === worktreePath || entry.cwd.startsWith(worktreePath + "/");
+        const matchesByWorktreePath = entry.worktreePath === worktreePath || entry.worktreePath?.startsWith(worktreePath + "/");
         if (!matchesByCwd && !matchesByWorktreePath) return;
 
         results.push({
@@ -276,24 +286,52 @@ function worktreePathToProjectDir(worktreePath: string): string {
   return worktreePath.replace(/[/.]/g, "-");
 }
 
-async function listCliSessions(worktreePath: string): Promise<SessionInfo[]> {
-  const projectDir = join(
-    getClaudeHomeDir(),
-    "projects",
-    worktreePathToProjectDir(worktreePath)
-  );
+async function findCliProjectDirs(worktreePath: string): Promise<string[]> {
+  const projectsRoot = join(getClaudeHomeDir(), "projects");
+  const prefix = worktreePathToProjectDir(worktreePath);
 
-  let files: string[];
+  let allDirs: string[];
   try {
-    files = (await readdir(projectDir)).filter((f) => f.endsWith(".jsonl"));
+    allDirs = await readdir(projectsRoot);
   } catch {
     return [];
   }
 
+  // Only include subdirectory project dirs if the worktree directory exists.
+  // The path escaping is lossy (both / and . become -), so prefix matching
+  // can produce false positives for removed worktrees or the main repo root.
+  let includeSubdirs = false;
+  try {
+    await stat(worktreePath);
+    includeSubdirs = true;
+  } catch {
+    // directory removed — exact match only
+  }
+
+  return allDirs
+    .filter((d) => d === prefix || (includeSubdirs && d.startsWith(prefix + "-")))
+    .map((d) => join(projectsRoot, d));
+}
+
+async function listCliSessions(worktreePath: string): Promise<SessionInfo[]> {
+  const projectDirs = await findCliProjectDirs(worktreePath);
+
+  const files: { dir: string; file: string }[] = [];
+  for (const dir of projectDirs) {
+    try {
+      const dirFiles = (await readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+      dirFiles.forEach((f) => files.push({ dir, file: f }));
+    } catch {
+      // skip inaccessible dirs
+    }
+  }
+
+  if (files.length === 0) return [];
+
   const results = await Promise.all(
-    files.map(async (f) => {
+    files.map(async ({ dir, file: f }) => {
       const rl = createInterface({
-        input: createReadStream(join(projectDir, f)),
+        input: createReadStream(join(dir, f)),
         crlfDelay: Infinity,
       });
 
@@ -465,18 +503,19 @@ async function getSessionHistory(
     }
   }
 
-  const projectDir = join(
-    getClaudeHomeDir(),
-    "projects",
-    worktreePathToProjectDir(cwd)
-  );
-  const jsonlPath = join(projectDir, `${cliSessionId}.jsonl`);
+  const projectDirs = await findCliProjectDirs(cwd);
 
-  try {
-    return await readSessionMessages(jsonlPath);
-  } catch {
-    return [];
+  for (const projectDir of projectDirs) {
+    const jsonlPath = join(projectDir, `${cliSessionId}.jsonl`);
+    try {
+      await stat(jsonlPath);
+      return await readSessionMessages(jsonlPath);
+    } catch {
+      continue;
+    }
   }
+
+  return [];
 }
 
 async function listSessions(worktreePath: string): Promise<SessionInfo[]> {
@@ -748,19 +787,19 @@ async function resolveJsonlPath(sessionId: string, worktreePath: string): Promis
     }
   }
 
-  const projectDir = join(
-    getClaudeHomeDir(),
-    "projects",
-    worktreePathToProjectDir(cwd)
-  );
-  const jsonlPath = join(projectDir, `${cliSessionId}.jsonl`);
+  const projectDirs = await findCliProjectDirs(cwd);
 
-  try {
-    await stat(jsonlPath);
-    return jsonlPath;
-  } catch {
-    return null;
+  for (const projectDir of projectDirs) {
+    const jsonlPath = join(projectDir, `${cliSessionId}.jsonl`);
+    try {
+      await stat(jsonlPath);
+      return jsonlPath;
+    } catch {
+      continue;
+    }
   }
+
+  return null;
 }
 
 function stopWatching(): void {
